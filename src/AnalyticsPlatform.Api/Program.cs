@@ -1,4 +1,7 @@
 using AnalyticsPlatform.Api.Health;
+using AnalyticsPlatform.Api.Ingestion;
+using AnalyticsPlatform.Api.Sites;
+using AnalyticsPlatform.Api.Visitors;
 using ClickHouse.Driver;
 using Npgsql;
 
@@ -26,10 +29,22 @@ builder.Services.AddHealthChecks()
     .AddCheck<ClickHouseHealthCheck>("clickhouse")
     .AddCheck<PostgresHealthCheck>("postgres");
 
+// Ingestion. All singletons: each holds no per-request state, so one shared
+// instance is safe and cheapest. TimeProvider is .NET's injectable clock, so
+// tests can fake "now" instead of depending on the real time.
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<SiteConfigStore>();
+builder.Services.AddSingleton<DailySaltStore>();
+builder.Services.AddSingleton<VisitorIdentifier>();
+builder.Services.AddSingleton<SessionTracker>();
+builder.Services.AddSingleton<EventWriter>();
+
 var app = builder.Build();
 
 // --- Endpoints -----------------------------------------------------------------
 app.MapGet("/", () => "Analytics Platform API");
 app.MapHealthChecks("/health", new() { ResponseWriter = HealthResponseWriter.WriteJson });
+app.MapIngestionEndpoints();
 
 app.Run();

@@ -75,7 +75,22 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   on first use, older days deleted by the API. Deleting it is what makes old
   hashes unlinkable. Stored in Postgres (not memory) so an API restart doesn't
   change everyone's ID mid-day. `ip_hash` uses the same salt.
-- Not decided yet: `session_id` generation (column is a non-null UUID).
+- **`session_id`** (decided 2026-11-06): server-side, never from the client.
+  Same `(site_id, visitor_id)` with no event for **30 minutes** = new session.
+  Implemented with `IMemoryCache` sliding expiration (`Visitors/SessionTracker.cs`),
+  IDs are `Guid.CreateVersion7()`. Known v1 limits: API restart starts new
+  sessions; single instance only; hash-mode sessions split at UTC midnight
+  (visitor_id changes with the salt). Revisit with Phase 5.
+
+### Ingestion API (Phase 2, in progress)
+- `POST /api/events` — JSON `EventRequest` (`siteId`, `type`, `name`, `url`,
+  `referrer`, `visitorId`, `screenWidth`, `screenHeight`, `properties`).
+  Validates, resolves the site (cached 1 min), computes visitor/session/ip_hash,
+  one synchronous ClickHouse insert, returns 204. Errors are 400 ValidationProblem.
+- `scripts/dev_seed.sql` creates site 1 (`hash`) and site 2 (`persistent`).
+- Not built yet: JS tracking snippet, site-config endpoint the snippet reads,
+  CORS for cross-origin `sendBeacon`, check that event hostname matches the
+  site's domain (anti-spam; probably Phase 7 with API keys).
 
 ## Hard requirement: verify current library versions
 
