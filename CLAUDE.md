@@ -208,9 +208,13 @@ being used).
     the default.
   - Postgres client: **`Npgsql`** (10.0.3 at time of writing). ORM vs. Dapper vs.
     raw Npgsql not yet decided.
-  - Still undecided: analyzers/formatting rules, error-handling conventions,
-    how connection strings are supplied (likely user-secrets in dev, env vars in
-    Docker).
+  - Connection strings: `ConnectionStrings:ClickHouse` / `ConnectionStrings:Postgres`
+    from configuration — **user secrets** in dev, env vars
+    (`ConnectionStrings__ClickHouse`) in Docker/prod. Never in appsettings.json.
+    App throws at startup if either is missing.
+  - `ClickHouseClient` and `NpgsqlDataSource` are DI singletons. `GET /health`
+    runs `IHealthCheck`s against both DBs (JSON body, 503 when unhealthy).
+  - Still undecided: analyzers/formatting rules, error-handling conventions.
 - **ClickHouse:** schema/table engine decisions — see above, MergeTree family,
   decided.
 - **React:** state/data-fetching — likely TanStack Query, not finalized.
