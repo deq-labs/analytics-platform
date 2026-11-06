@@ -1,0 +1,23 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+
+# Node / React
+node_modules/
+dist/
+build/
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
