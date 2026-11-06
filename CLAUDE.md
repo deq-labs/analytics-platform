@@ -193,10 +193,24 @@ being used).
 
 ## Conventions
 
-- **C# / .NET:** solution/project layout, target .NET version, ClickHouse client
-  library, analyzers/formatting, error handling — not yet decided, will be set
-  when Phase 2 starts. Check current (2026) .NET best practice and library
-  versions at that point rather than defaulting to older conventions.
+- **C# / .NET** (decided 2026-11-06):
+  - **.NET 10 (LTS, supported to Nov 2028)**, pinned via `global.json` (SDK
+    10.0.301, `latestFeature` roll-forward). .NET 11 (STS) ships 2026-11-10 —
+    don't jump to it; next planned move is .NET 12 LTS.
+  - Solution `AnalyticsPlatform.slnx` (new XML solution format) at repo root,
+    projects under `src/`. Developer uses **Visual Studio Community 2026**.
+  - One web project for now: `src/AnalyticsPlatform.Api` (ASP.NET Core minimal
+    APIs) hosting both ingestion and query endpoints. Splitting ingestion into
+    its own service is a later decision, not v1.
+  - ClickHouse client: **`ClickHouse.Driver`** (official ClickHouse C# client,
+    1.5.0 at time of writing; replaces the older community `ClickHouse.Client`
+    package — don't use that one). Note 1.4.0 made zstd response compression
+    the default.
+  - Postgres client: **`Npgsql`** (10.0.3 at time of writing). ORM vs. Dapper vs.
+    raw Npgsql not yet decided.
+  - Still undecided: analyzers/formatting rules, error-handling conventions,
+    how connection strings are supplied (likely user-secrets in dev, env vars in
+    Docker).
 - **ClickHouse:** schema/table engine decisions — see above, MergeTree family,
   decided.
 - **React:** state/data-fetching — likely TanStack Query, not finalized.

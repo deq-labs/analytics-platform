@@ -10,7 +10,9 @@ decisions, and phase plan.
 
 ## Stack
 
-- **C# / ASP.NET Core**: ingestion and query APIs (not started)
+- **C# / ASP.NET Core (.NET 10)**: ingestion and query APIs (project scaffolded,
+  `src/AnalyticsPlatform.Api`; open `AnalyticsPlatform.slnx` in Visual Studio 2026
+  or run `dotnet run --project src/AnalyticsPlatform.Api`)
 - **ClickHouse**: event store
 - **Postgres**: app metadata (sites, per-site tracking settings)
 - **React**: dashboard (not started)
