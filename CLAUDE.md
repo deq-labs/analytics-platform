@@ -58,6 +58,25 @@ distinct from user-defined custom events.
   Auth, users, and API keys are still Phase 7 — only these two tables exist
   early, and only for this reason.
 
+## Visitor identification
+
+Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
+`postgres/init/002_visitor_id.sql`). Both modes ship in Phase 2.
+
+- **`hash` (default)** — cookie-less, Plausible-style. Server computes
+  `SHA-256(daily salt + site_id + IP + user agent)`; stored as `h:<hex>`.
+  Nothing stored on the visitor's device. Same person on two days = two visitors.
+- **`persistent`** — the snippet keeps a random UUID in `localStorage` and sends
+  it; stored as `p:<uuid>`. Accurate returning visitors. Consent is the site
+  owner's responsibility. **If no valid UUID arrives, fall back to the hash** —
+  this lets a site run hash-mode until the visitor consents. Never trust the
+  client value beyond validating it parses as a UUID.
+- **Daily salt** — random 32 bytes per UTC day in Postgres `daily_salts`, created
+  on first use, older days deleted by the API. Deleting it is what makes old
+  hashes unlinkable. Stored in Postgres (not memory) so an API restart doesn't
+  change everyone's ID mid-day. `ip_hash` uses the same salt.
+- Not decided yet: `session_id` generation (column is a non-null UUID).
+
 ## Hard requirement: verify current library versions
 
 Package knowledge from training data goes stale, and this ecosystem moves fast
@@ -165,9 +184,9 @@ especially is expensive to change post-hoc):
   policy is Phase 8. `ALTER TABLE ... MODIFY TTL` is cheap to change later
   (metadata-only, applied by background merges), so this isn't a locked-in
   decision.
-- **`visitor_id`** is `String` with no generation strategy decided yet — this is
-  deliberately unresolved until Phase 2 (initial capture) / Phase 6 (possible
-  cookie-less fingerprint hashing). Don't invent a strategy without flagging it.
+- **`visitor_id`** is `String` — strategy decided 2026-11-06, see "Visitor
+  identification" below. Values are prefixed `h:` (cookie-less hash) or `p:`
+  (persistent browser ID) so both kinds can live in one column.
 - **`site_id`** is `UInt32`, expected to reference a future Postgres `sites.id`
   (Phase 7, not yet designed).
 - **`event_type = 'standard'`** — new category for GA-Enhanced-Measurement-style
@@ -187,6 +206,10 @@ being used).
   "Standard (auto-tracked) events" above. Rows are meant to be seeded per site at
   creation time (default `enabled = true`, opt-out like GA) — the seeding logic
   itself isn't built yet (Phase 2/7 concern).
+- **`sites.visitor_id_mode`** and **`daily_salts`** —
+  `postgres/init/002_visitor_id.sql`, see "Visitor identification". Init scripts
+  only run on an empty volume, so new migration files must be idempotent and
+  get applied by hand to existing DBs until migration tooling is chosen.
 - **`users` / `api_keys`** are still a Phase 7 decision — don't scaffold them
   speculatively. Only `sites`/`site_tracked_events` were pulled forward, and only
   because the tracking snippet needs them.
