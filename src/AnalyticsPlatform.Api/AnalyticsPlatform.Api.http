@@ -1,0 +1,66 @@
+# Run the API (F5), then click "Send request" above any request below.
+# Site 1 = cookie-less hash mode, site 2 = persistent mode (see scripts/dev_seed.sql).
+
+@api = http://localhost:5115
+
+### Health check
+GET {{api}}/health
+
+### Pageview (site 1, hash mode)
+POST {{api}}/api/events
+Content-Type: application/json
+
+{
+  "siteId": 1,
+  "type": "pageview",
+  "url": "https://localhost/pricing",
+  "referrer": "https://google.com/",
+  "screenWidth": 1920,
+  "screenHeight": 1080
+}
+
+### Standard event: scroll depth
+POST {{api}}/api/events
+Content-Type: application/json
+
+{
+  "siteId": 1,
+  "type": "standard",
+  "name": "scroll",
+  "url": "https://localhost/pricing",
+  "properties": { "depth": "90" }
+}
+
+### Custom event
+POST {{api}}/api/events
+Content-Type: application/json
+
+{
+  "siteId": 1,
+  "type": "custom",
+  "name": "signup_click",
+  "url": "https://localhost/pricing",
+  "properties": { "plan": "pro" }
+}
+
+### Pageview (site 2, persistent mode, browser-provided ID)
+POST {{api}}/api/events
+Content-Type: application/json
+
+{
+  "siteId": 2,
+  "type": "pageview",
+  "url": "https://persistent.localhost/",
+  "visitorId": "7c1e2f40-8a5b-4c3d-9e1f-0a2b3c4d5e6f"
+}
+
+### Should fail (400): custom event using a reserved standard name
+POST {{api}}/api/events
+Content-Type: application/json
+
+{
+  "siteId": 1,
+  "type": "custom",
+  "name": "scroll",
+  "url": "https://localhost/"
+}
