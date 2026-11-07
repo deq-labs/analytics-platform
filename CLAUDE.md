@@ -19,8 +19,8 @@ concept explained — I need help building it well.
 - **ClickHouse** — primary event store (columnar OLAP). This is the core learning
   target, not an implementation detail — don't casually suggest swapping it for
   Postgres/Timescale/etc.
-- **React** — dashboard frontend. Likely TanStack Query for data fetching (prior
-  experience with it from other work), but not finalized.
+- **React + TypeScript** — dashboard frontend in `dashboard/` (Vite, TanStack
+  Query, Recharts). See "Dashboard" under Current state.
 - **Postgres** — app metadata only (users, sites, API keys). Explicitly separate
   from the ClickHouse event store — event data never goes in Postgres.
 - **Python** — deferred. Reserved for a clearly separable adjacent service later
@@ -118,6 +118,22 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   tests (tracker was verified with an ad-hoc Node fake-DOM harness; testing
   approach still undecided).
 
+### Dashboard (Phase 4, done) — `dashboard/`
+- `npm run dev` with the API on 5115; Vite proxies `/api` (override with
+  `API_URL`). No CORS on the stats endpoints; `GET /api/sites` added for the
+  site picker (lists all sites until Phase 7 auth).
+- Filter row (site + 24h/7d/30d/90d presets, all UTC, kept in the URL as
+  `?site=&range=`) scopes every view. 24h → hourly buckets, else daily.
+- Charts follow the dataviz skill: 2-series line (pageviews `--series-1` blue,
+  visitors `--series-2` orange; validated light + dark incl. CVD), legend,
+  crosshair tooltip, Table toggle, round y-ticks via `niceTicks()`. Top lists are
+  tables with a one-hue thin bar. Light/dark via `prefers-color-scheme`.
+- Verified by headless-Chrome screenshots (light, dark, 375px via iframe —
+  headless Chrome's minimum viewport is 512px, so `--window-size` below that
+  just crops). Hover tooltip and Table toggle not yet clicked through.
+- Bundle ~186 KB gzip (mostly Recharts) — fine for the dashboard; unrelated
+  to `tracker.js`, which stays dependency-free.
+
 ### Query API (Phase 3, done)
 - `GET /api/sites/{id}/stats/pageviews?from&to&interval=hour|day`,
   `/top-pages?from&to&limit`, `/top-referrers?from&to&limit` (`Stats/`).
@@ -189,8 +205,9 @@ whether to proceed or defer it, rather than silently building it.
    that collide with the reserved standard-event names at this layer.
 3. **Query API + raw dashboard reads** — ✅ done (see "Query API" under Current
    state). Read endpoints: pageviews over time, top pages, top referrers.
-4. **React dashboard (v1 views only)** — time series chart, top pages table, top
-   referrers table, geo/device breakdown. Exactly these four. Resist adding more.
+4. **React dashboard (v1 views only)** — ✅ done (see "Dashboard" under Current
+   state). Time series chart, top pages table, top referrers table, geo/device
+   breakdown (empty state until Phase 6). Exactly these four. Resist adding more.
 5. **Batching + async ingestion** — buffer events, batch-write to ClickHouse
    instead of one insert per event. Do this after the loop is trusted end-to-end,
    not before.
@@ -206,7 +223,8 @@ whether to proceed or defer it, rather than silently building it.
    retention policy (current TTL is a placeholder), then whatever's next from the
    backlog. Also the point to evaluate whether the Python service earns its place.
 
-We are currently between **Phase 3 (done 2026-11-07) and Phase 4 (next)**.
+We are currently between **Phase 4 (done 2026-11-07) and Phase 5 (next)**.
+The v1 core loop (snippet → C# ingestion → ClickHouse → dashboard) works end to end.
 
 ## Current state
 
@@ -306,7 +324,11 @@ being used).
   - Still undecided: analyzers/formatting rules, error-handling conventions.
 - **ClickHouse:** schema/table engine decisions — see above, MergeTree family,
   decided.
-- **React:** state/data-fetching — likely TanStack Query, not finalized.
+- **React / TypeScript** (decided 2026-11-07): Vite 8, React 19.3, TypeScript 7
+  (native Go compiler), TanStack Query 5 for all server state (one hook per
+  endpoint in `src/api.ts`, `keepPreviousData` so refetches dim instead of
+  flashing), Recharts 3 for charts, oxlint for linting, plain CSS with color-role
+  custom properties (no CSS framework). Versions are pinned in `package.json`.
 - **Testing:** not yet decided.
 
 ## How this file relates to the Claude Project

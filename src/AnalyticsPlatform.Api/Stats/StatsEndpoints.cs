@@ -1,5 +1,6 @@
 using AnalyticsPlatform.Api.Sites;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Npgsql;
 
 namespace AnalyticsPlatform.Api.Stats;
 
@@ -14,11 +15,30 @@ public static class StatsEndpoints
 {
     public static IEndpointRouteBuilder MapStatsEndpoints(this IEndpointRouteBuilder app)
     {
+        // The dashboard's site picker. Phase 7 will limit this to the signed-in
+        // user's sites; for now it lists all of them.
+        app.MapGet("/api/sites", ListSitesAsync);
+
         var stats = app.MapGroup("/api/sites/{siteId}/stats");
         stats.MapGet("/pageviews", GetPageviewsAsync);
         stats.MapGet("/top-pages", GetTopPagesAsync);
         stats.MapGet("/top-referrers", GetTopReferrersAsync);
         return app;
+    }
+
+    private static async Task<Ok<List<SiteSummary>>> ListSitesAsync(
+        NpgsqlDataSource dataSource, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand("SELECT id, name, domain FROM sites ORDER BY name");
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var sites = new List<SiteSummary>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            sites.Add(new SiteSummary((uint)reader.GetInt32(0), reader.GetString(1), reader.GetString(2)));
+        }
+
+        return TypedResults.Ok(sites);
     }
 
     private static async Task<Results<Ok<TimeSeriesResponse>, NotFound, ValidationProblem>> GetPageviewsAsync(

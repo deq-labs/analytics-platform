@@ -1,0 +1,357 @@
+/* Color roles (see the dataviz palette). Components use these names, never raw
+   hex, so light and dark mode swap in one place. Series colors were checked with
+   the palette validator in both modes, including color-blindness simulations. */
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.1);
+  --wash: rgba(11, 11, 11, 0.04);
+  --series-1: #2a78d6; /* blue: pageviews */
+  --series-2: #eb6834; /* orange: visitors */
+  --bar-track: #e1e0d9;
+  --critical: #d03b3b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme='light'])) {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.1);
+    --wash: rgba(255, 255, 255, 0.05);
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --bar-track: #2c2c2a;
+    --critical: #e66767;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --text-muted: #898781;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255, 255, 255, 0.1);
+  --wash: rgba(255, 255, 255, 0.05);
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --bar-track: #2c2c2a;
+  --critical: #e66767;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text-primary);
+  font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* ---- layout ------------------------------------------------------------- */
+
+.app {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.app-header p {
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 900px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .span-2 {
+    grid-column: span 2;
+  }
+}
+
+/* ---- filter row ---------------------------------------------------------- */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  margin: 20px 0 16px;
+}
+
+.filters label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+select {
+  font: inherit;
+  color: var(--text-primary);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  min-width: 180px;
+}
+
+.segmented {
+  display: inline-flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.segmented button {
+  font: inherit;
+  font-size: 14px;
+  color: var(--text-secondary);
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.segmented button:hover {
+  background: var(--wash);
+}
+
+.segmented button[aria-pressed='true'] {
+  color: var(--text-primary);
+  background: var(--wash);
+  font-weight: 600;
+}
+
+/* ---- cards ----------------------------------------------------------------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px 20px;
+  min-width: 0;
+  transition: opacity 150ms;
+}
+
+/* Refetching: keep the previous render, just dimmed (no skeleton, no jump). */
+.card.refreshing {
+  opacity: 0.55;
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.card-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.card-head .figure {
+  margin: 2px 0 0;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.card-head .sub {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.link-button {
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.link-button:hover {
+  background: var(--wash);
+}
+
+.message {
+  color: var(--text-secondary);
+  font-size: 14px;
+  padding: 24px 0;
+  text-align: center;
+}
+
+.message.error {
+  color: var(--text-primary);
+}
+
+.message.error strong {
+  color: var(--critical);
+}
+
+/* ---- chart ------------------------------------------------------------------- */
+
+.legend {
+  display: flex;
+  gap: 16px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.legend li,
+.tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* A short stroke of the series color identifies the series (line key). */
+.line-key {
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.tooltip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.tooltip-time {
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.tooltip-row strong {
+  font-variant-numeric: tabular-nums;
+  min-width: 3ch;
+}
+
+.tooltip-row span {
+  color: var(--text-secondary);
+}
+
+/* ---- tables ------------------------------------------------------------------- */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 0 0 6px;
+  border-bottom: 1px solid var(--grid);
+}
+
+td {
+  padding: 7px 0;
+  border-bottom: 1px solid var(--grid);
+  vertical-align: middle;
+}
+
+tr:last-child td {
+  border-bottom: 0;
+}
+
+th.num,
+td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding-left: 12px;
+  white-space: nowrap;
+}
+
+td.num {
+  color: var(--text-secondary);
+}
+
+td.num.primary {
+  color: var(--text-primary);
+}
+
+.row-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 0; /* lets the label column shrink and ellipsize */
+  width: 100%;
+}
+
+.row-label .name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row-label .muted {
+  color: var(--text-muted);
+}
+
+/* Thin bar under each row label: one hue, rounded ends, no text on it. */
+.thin-bar {
+  display: block;
+  height: 4px;
+  margin-top: 4px;
+  border-radius: 2px;
+  background: var(--bar-track);
+}
+
+.thin-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--series-1);
+}

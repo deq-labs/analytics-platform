@@ -3,6 +3,8 @@ namespace AnalyticsPlatform.Api.Stats;
 // Shapes of the JSON the stats endpoints return. ClickHouse count() and uniq()
 // return UInt64, which is `ulong` in C#.
 
+public sealed record SiteSummary(uint Id, string Name, string Domain);
+
 public sealed record TimeSeriesPoint(DateTime Time, ulong Pageviews, ulong Visitors);
 
 public sealed record TopPage(string Path, ulong Pageviews, ulong Visitors);

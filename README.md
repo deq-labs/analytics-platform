@@ -4,18 +4,18 @@ A self-hosted web analytics platform combining Google Analytics 4's auto-tracked
 events with Rybbit's lightweight, self-hostable simplicity. A learning project
 focused on **C# / ASP.NET Core** and **ClickHouse**.
 
-**Status:** Phase 1 of 8 complete (database schemas + local infrastructure).
-The C# ingestion API is next. See [`CLAUDE.md`](CLAUDE.md) for the full design,
+**Status:** Phases 1–4 of 8 complete: tracking snippet → C# ingestion → ClickHouse → React dashboard works end to end.
+See [`CLAUDE.md`](CLAUDE.md) for the full design,
 decisions, and phase plan.
 
 ## Stack
 
-- **C# / ASP.NET Core (.NET 10)**: ingestion and query APIs (project scaffolded,
+- **C# / ASP.NET Core (.NET 10)**: ingestion and query APIs
   `src/AnalyticsPlatform.Api`; open `AnalyticsPlatform.slnx` in Visual Studio 2026
   or run `dotnet run --project src/AnalyticsPlatform.Api`)
 - **ClickHouse**: event store
 - **Postgres**: app metadata (sites, per-site tracking settings)
-- **React**: dashboard (not started)
+- **React + TypeScript**: dashboard in [`dashboard/`](dashboard/README.md)
 - **Docker Compose**: local development
 
 ## Running locally
