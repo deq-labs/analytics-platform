@@ -121,6 +121,39 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   / a not-yet-activated key — new keys can take ~5 min). With the file present,
   the real-DB tests run instead of skipping.
 
+### Phase 7 — accounts + login (step 2, done 2026-11-07) — `src/AnalyticsPlatform.Api/Auth/`
+- **Decision:** self-hosting is a first-class option. `Auth:OpenRegistration`
+  false (default) = invite-only after the first account; true = open sign-up (SaaS).
+  The **first account becomes admin** and claims all sites with no owner.
+- Tables (`postgres/init/004_users.sql`): `users` (unique on `lower(email)`),
+  `sites.owner_user_id` (nullable, ON DELETE CASCADE), `invites` (SHA-256 of a
+  32-byte random token; one-time; `Auth:InviteLifetime` 7 days).
+- **No EF Core / full Identity**: hand-written `UserStore` (Npgsql) +
+  `PasswordHasher<AppUser>` from Microsoft.Extensions.Identity.Core (PBKDF2,
+  hashes start `AQAAAA`). Registration runs in one transaction with
+  `pg_advisory_xact_lock` so two first sign-ups can't both become admin.
+- **Cookie auth** (`ap_session`): HttpOnly, SameSite=Strict (the CSRF defence;
+  dashboard is same-origin via the Vite proxy), Secure when HTTPS, 14 days
+  sliding. 401/403 instead of redirects. Claims: id, email, `admin`. Note: claims
+  live in the cookie until it expires — demoting/deleting a user doesn't end
+  their session yet.
+- Endpoints: `GET /api/auth/status` (anon), `POST register|login|logout`,
+  `GET /api/auth/me`, `POST /api/admin/invites` (admin policy). Login checks a
+  dummy hash for unknown emails (timing) and gives one message for both cases.
+  Rate limit `Auth:AttemptsPerMinute` (10) per client IP on login+register → 429.
+- **Access:** `/api/sites` and `/api/sites/{id}/stats/*` require auth; an
+  endpoint filter on the stats group returns **404** (not 403) unless you own
+  the site or are admin. Tracking endpoints, `/health`, `/demo` stay anonymous.
+- Dashboard: `src/auth.ts` (screen choice + login/register/logout mutations
+  that `resetQueries()`), `AuthScreen` (setup / login / `?invite=` sign-up),
+  header shows the user + Sign out. No invite UI yet (step 3) — create invites
+  with `POST /api/admin/invites` while signed in as admin.
+- Deploy notes: cookie encryption keys (ASP.NET Data Protection) are stored per
+  machine user by default; containers need a persisted key ring. Behind HTTPS the
+  cookie gets `Secure` automatically.
+- Tests: fixture signs `Http` in as the admin; `CreateFreshPostgresDatabaseAsync`
+  gives first-run tests an empty DB; `CreateUserClientAsync` = invited 2nd user.
+
 ### Phase 7 — tracking IDs + domain check (step 1, done 2026-11-07)
 - **Decision (2026-11-07):** the developer wanted tracking keys like GA / Rybbit.
   Implemented as a **public tracking ID** per site (`sites.tracking_id`,
@@ -312,14 +345,14 @@ whether to proceed or defer it, rather than silently building it.
    flag, UTM tags, IP geolocation (GeoLite2), breakdown endpoint + dashboard
    cards. See "Enrichment" and "Breakdowns" under Current state.
 7. **Auth, multi-site, API keys** — 🟡 in progress (see "Phase 7" under Current
-   state). Steps: ✅ 1 public tracking IDs + domain check · ⏳ 2 users + login +
-   locking the dashboard API · ⏳ 3 site management in the dashboard · ⏳ 4 secret
-   API keys for server-to-server stats reads.
+   state). Steps: ✅ 1 public tracking IDs + domain check · ✅ 2 users + login +
+   locking the dashboard API · ⏳ 3 site management in the dashboard (incl. an
+   invite UI) · ⏳ 4 secret API keys for server-to-server stats reads.
 8. **Rollups, retention, remaining backlog** — hourly/daily rollup tables, real
    retention policy (current TTL is a placeholder), then whatever's next from the
    backlog. Also the point to evaluate whether the Python service earns its place.
 
-We are currently **in Phase 7** (step 1 of 4 done).
+We are currently **in Phase 7** (steps 1–2 of 4 done).
 The v1 core loop (snippet → C# ingestion → ClickHouse → dashboard) works end to end.
 
 ## Current state

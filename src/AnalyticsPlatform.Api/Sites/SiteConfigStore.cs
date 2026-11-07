@@ -18,7 +18,8 @@ public sealed record SiteConfig(
     VisitorIdMode VisitorIdMode,
     IReadOnlyList<string> EnabledStandardEvents,
     string TrackingId = "",
-    string Domain = "");
+    string Domain = "",
+    int? OwnerUserId = null);
 
 // Reads per-site settings from Postgres. Every event needs its site's settings,
 // so results are cached in memory for a minute instead of querying Postgres on
@@ -37,7 +38,7 @@ public sealed class SiteConfigStore(NpgsqlDataSource dataSource, IMemoryCache ca
     // array_agg(...) FILTER collects only the enabled ones. {0} is the WHERE
     // condition -- one of two fixed strings below, never user input.
     private const string SqlTemplate = """
-        SELECT s.id, s.visitor_id_mode, s.tracking_id, s.domain,
+        SELECT s.id, s.visitor_id_mode, s.tracking_id, s.domain, s.owner_user_id,
                coalesce(array_agg(e.event_key ORDER BY e.event_key)
                         FILTER (WHERE e.enabled), '{{}}') AS enabled_events
         FROM sites s
@@ -84,8 +85,9 @@ public sealed class SiteConfigStore(NpgsqlDataSource dataSource, IMemoryCache ca
         return new SiteConfig(
             Id: (uint)reader.GetInt32(0),
             VisitorIdMode: reader.GetString(1) == "persistent" ? VisitorIdMode.Persistent : VisitorIdMode.Hash,
-            EnabledStandardEvents: reader.GetFieldValue<string[]>(4),
+            EnabledStandardEvents: reader.GetFieldValue<string[]>(5),
             TrackingId: reader.GetString(2),
-            Domain: reader.GetString(3));
+            Domain: reader.GetString(3),
+            OwnerUserId: reader.IsDBNull(4) ? null : reader.GetInt32(4));
     }
 }

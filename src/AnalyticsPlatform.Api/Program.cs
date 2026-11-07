@@ -1,3 +1,5 @@
+using System.Threading.RateLimiting;
+using AnalyticsPlatform.Api.Auth;
 using AnalyticsPlatform.Api.Enrichment;
 using AnalyticsPlatform.Api.Health;
 using AnalyticsPlatform.Api.Ingestion;
@@ -5,6 +7,9 @@ using AnalyticsPlatform.Api.Sites;
 using AnalyticsPlatform.Api.Stats;
 using AnalyticsPlatform.Api.Visitors;
 using ClickHouse.Driver;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -82,11 +87,62 @@ builder.Services.AddCors(options => options.AddPolicy(TrackerCorsPolicy, policy 
     .WithMethods("GET", "POST")
     .WithHeaders("Content-Type")));
 
+// --- Accounts and login (Phase 7) ------------------------------------------------
+builder.Services.AddOptions<AuthOptions>().Bind(builder.Configuration.GetSection("Auth"));
+builder.Services.AddSingleton<UserStore>();
+// ASP.NET Core Identity's password hasher (PBKDF2, per-user salt, versioned
+// format) -- used on its own, without the rest of Identity or Entity Framework.
+builder.Services.AddSingleton<IPasswordHasher<AppUser>, PasswordHasher<AppUser>>();
+
+// Signing in sets an encrypted session cookie the browser sends back on every
+// request. HttpOnly: JavaScript can't read it (stops token theft via XSS).
+// SameSite=Strict: browsers never send it on requests started by other sites,
+// which is what defends cookie auth against cross-site request forgery (CSRF).
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.Cookie.Name = "ap_session";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Strict;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest; // Secure whenever served over HTTPS
+        options.ExpireTimeSpan = TimeSpan.FromDays(14);
+        options.SlidingExpiration = true;
+        // This is an API: answer 401/403 instead of redirecting to a login page.
+        options.Events.OnRedirectToLogin = context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        };
+        options.Events.OnRedirectToAccessDenied = context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        };
+    });
+builder.Services.AddAuthorization(options =>
+    options.AddPolicy(AuthEndpoints.AdminPolicy, policy => policy.RequireAssertion(c => c.User.IsAdmin())));
+
+// Login/register attempts per client IP per minute (Auth:AttemptsPerMinute).
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy(AuthEndpoints.RateLimitPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = context.RequestServices.GetRequiredService<IOptions<AuthOptions>>().Value.AttemptsPerMinute,
+            Window = TimeSpan.FromMinutes(1),
+        }));
+});
+
 var app = builder.Build();
 
 // --- Middleware (runs on every request, in this order) ---------------------------
 app.UseStaticFiles(); // serves files in wwwroot/, e.g. /tracker.js
 app.UseCors();
+app.UseAuthentication(); // reads the session cookie -> HttpContext.User
+app.UseAuthorization();  // enforces RequireAuthorization() on endpoints
+app.UseRateLimiter();
 
 // --- Endpoints -----------------------------------------------------------------
 app.MapGet("/", () => "Analytics Platform API");
@@ -98,8 +154,9 @@ var trackerApi = app.MapGroup("").RequireCors(TrackerCorsPolicy);
 trackerApi.MapIngestionEndpoints();
 trackerApi.MapSiteEndpoints();
 
-// Dashboard reads. Deliberately outside the tracker group: no CORS for any
-// origin here. (No auth either, yet -- Phase 7.)
+// Dashboard: accounts + reads. Deliberately outside the tracker group, so no
+// CORS for any origin, and they require a signed-in user.
+app.MapAuthEndpoints();
 app.MapStatsEndpoints();
 
 // A test page that loads tracker.js, only when running locally.

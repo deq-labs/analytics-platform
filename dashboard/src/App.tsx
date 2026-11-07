@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSites, useTopPages, useTopReferrers } from './api'
+import { useLogout, useMe, type User } from './auth'
 import { Card, QueryState } from './components/Card'
 import { BreakdownCard } from './components/BreakdownCard'
 import { PageviewsChart } from './components/PageviewsChart'
+import { AuthScreen } from './components/AuthScreen'
 import { TopList } from './components/TopList'
 import { PRESETS, rangeFor, type PresetKey } from './format'
 
@@ -16,7 +18,16 @@ function readUrl(): { site?: number; preset: PresetKey } {
   return { site, preset }
 }
 
+// Signed in -> dashboard. Not signed in -> setup / login / invite sign-up.
 export default function App() {
+  const me = useMe()
+  if (me.isPending) return <main className="auth"><p className="message">Loading…</p></main>
+  if (!me.data) return <AuthScreen />
+  return <Dashboard user={me.data} />
+}
+
+function Dashboard({ user }: { user: User }) {
+  const logout = useLogout()
   const initial = readUrl()
   const [siteId, setSiteId] = useState<number | undefined>(initial.site)
   const [preset, setPreset] = useState<PresetKey>(initial.preset)
@@ -44,8 +55,16 @@ export default function App() {
   return (
     <main className="app">
       <header className="app-header">
-        <h1>Analytics</h1>
-        <p>{activeSite ? activeSite.domain : 'Self-hosted web analytics'} · all times UTC</p>
+        <div>
+          <h1>Analytics</h1>
+          <p>{activeSite ? activeSite.domain : 'Self-hosted web analytics'} · all times UTC</p>
+        </div>
+        <div className="account">
+          <span>{user.email}{user.isAdmin && <span className="muted"> · admin</span>}</span>
+          <button className="link-button" onClick={() => logout.mutate()} disabled={logout.isPending}>
+            Sign out
+          </button>
+        </div>
       </header>
 
       {/* One filter row above everything; it scopes every view below. */}

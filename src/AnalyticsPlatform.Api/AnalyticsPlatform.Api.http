@@ -72,6 +72,10 @@ Content-Type: application/json
 }
 
 ###############################################################################
+# Since Phase 7 the stats requests below need a signed-in session, so they
+# return 401 from here. Use the dashboard (sign in there), or the per-site API
+# keys coming in Phase 7 step 4 for scripted access.
+###############################################################################
 # Stats (Phase 3). Site 5 = "Demo data" -- check your id with the last lines of
 # scripts/dev_seed.sql, and fill it with scripts/dev_events.sql.
 # Dates are UTC. Omit from/to for the last 7 days.

@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using AnalyticsPlatform.Api.Auth;
 using AnalyticsPlatform.Api.Sites;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Npgsql;
@@ -10,17 +12,20 @@ namespace AnalyticsPlatform.Api.Stats;
 //   GET /api/sites/{siteId}/stats/top-referrers  ?from&to&limit
 //   GET /api/sites/{siteId}/stats/breakdown      ?dimension=browser|os|device|country&from&to&limit
 //
-// No authentication yet -- that's Phase 7. Until then, don't expose this API
-// beyond your own machine.
+// All of these need a signed-in user who owns the site (or is the admin).
 public static class StatsEndpoints
 {
     public static IEndpointRouteBuilder MapStatsEndpoints(this IEndpointRouteBuilder app)
     {
-        // The dashboard's site picker. Phase 7 will limit this to the signed-in
-        // user's sites; for now it lists all of them.
-        app.MapGet("/api/sites", ListSitesAsync);
+        // The dashboard's site picker: your own sites (an admin sees all).
+        app.MapGet("/api/sites", ListSitesAsync).RequireAuthorization();
 
-        var stats = app.MapGroup("/api/sites/{siteId}/stats");
+        // Every stats endpoint needs a login AND access to the site in the URL.
+        // An *endpoint filter* runs before each handler in the group, so the
+        // check lives in one place instead of in every handler.
+        var stats = app.MapGroup("/api/sites/{siteId}/stats")
+            .RequireAuthorization()
+            .AddEndpointFilter(RequireSiteAccessAsync);
         stats.MapGet("/pageviews", GetPageviewsAsync);
         stats.MapGet("/top-pages", GetTopPagesAsync);
         stats.MapGet("/top-referrers", GetTopReferrersAsync);
@@ -28,10 +33,36 @@ public static class StatsEndpoints
         return app;
     }
 
-    private static async Task<Ok<List<SiteSummary>>> ListSitesAsync(
-        NpgsqlDataSource dataSource, CancellationToken cancellationToken)
+    // A site you don't own answers 404, not 403: it shouldn't even reveal that
+    // the site exists.
+    private static async ValueTask<object?> RequireSiteAccessAsync(
+        EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
-        await using var command = dataSource.CreateCommand("SELECT id, name, domain, tracking_id FROM sites ORDER BY name");
+        var http = context.HttpContext;
+        if (!uint.TryParse(http.Request.RouteValues["siteId"]?.ToString(), out var siteId))
+        {
+            return TypedResults.NotFound();
+        }
+
+        var site = await http.RequestServices.GetRequiredService<SiteConfigStore>().GetAsync(siteId, http.RequestAborted);
+        if (site is null || !(http.User.IsAdmin() || site.OwnerUserId == http.User.UserId()))
+        {
+            return TypedResults.NotFound();
+        }
+
+        return await next(context);
+    }
+
+    private static async Task<Ok<List<SiteSummary>>> ListSitesAsync(
+        ClaimsPrincipal user, NpgsqlDataSource dataSource, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand("""
+            SELECT id, name, domain, tracking_id FROM sites
+            WHERE $1 OR owner_user_id = $2
+            ORDER BY name
+            """);
+        command.Parameters.AddWithValue(user.IsAdmin());
+        command.Parameters.AddWithValue(user.UserId());
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         var sites = new List<SiteSummary>();

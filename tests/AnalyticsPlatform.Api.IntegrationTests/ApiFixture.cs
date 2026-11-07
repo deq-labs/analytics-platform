@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text;
+using System.Net.Http.Json;
 using System.Text.Json;
 using AnalyticsPlatform.Api.Ingestion;
 using ClickHouse.Driver;
@@ -69,14 +70,26 @@ public sealed class ApiFixture : IAsyncLifetime
             await ClickHouse.ExecuteNonQueryAsync(await File.ReadAllTextAsync(file));
         }
 
-        foreach (var file in RepoPaths.SqlFiles("postgres/init"))
-        {
-            await using var command = Postgres.CreateCommand(await File.ReadAllTextAsync(file));
-            await command.ExecuteNonQueryAsync();
-        }
+        await ApplyPostgresScriptsAsync(Postgres);
 
         _factory = CreateFactory();
+
+        // `Http` is signed in as the instance's first user -- the admin -- so
+        // tests that aren't about auth can use it without thinking about login.
+        // (WebApplicationFactory clients keep cookies between requests.)
         Http = _factory.CreateClient();
+        var admin = await RegisterAsync(Http, AdminEmail, TestPassword);
+        AdminUserId = admin.Id;
+    }
+
+    private static async Task ApplyPostgresScriptsAsync(NpgsqlDataSource dataSource)
+    {
+        // Apply every init script in order, exactly like the container does on first start.
+        foreach (var file in RepoPaths.SqlFiles("postgres/init"))
+        {
+            await using var command = dataSource.CreateCommand(await File.ReadAllTextAsync(file));
+            await command.ExecuteNonQueryAsync();
+        }
     }
 
     // Runs the API in-memory against the test containers. Most tests share the
@@ -84,16 +97,72 @@ public sealed class ApiFixture : IAsyncLifetime
     // settings create their own with this and dispose it themselves.
     //
     // "Testing" environment = user secrets are NOT loaded, so the API can only
-    // ever see the test containers. A short flush interval keeps tests fast.
-    public WebApplicationFactory<Program> CreateFactory(Action<IWebHostBuilder>? configure = null) =>
+    // ever see the test containers. A short flush interval keeps tests fast, and
+    // a generous login rate limit stops the whole suite (which shares one
+    // "client IP") tripping it.
+    public WebApplicationFactory<Program> CreateFactory(
+        Action<IWebHostBuilder>? configure = null, string? postgresConnectionString = null) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Testing");
             builder.UseSetting("ConnectionStrings:ClickHouse", ClickHouseConnectionString);
-            builder.UseSetting("ConnectionStrings:Postgres", PostgresConnectionString);
+            builder.UseSetting("ConnectionStrings:Postgres", postgresConnectionString ?? PostgresConnectionString);
             builder.UseSetting("Ingestion:FlushInterval", "00:00:00.050");
+            builder.UseSetting("Auth:AttemptsPerMinute", "10000");
             configure?.Invoke(builder);
         });
+
+    // ---- Users ------------------------------------------------------------------
+
+    public const string AdminEmail = "admin@integration.test";
+    public const string TestPassword = "correct horse battery staple";
+
+    public int AdminUserId { get; private set; }
+
+    // A client that isn't signed in (like a visitor's browser).
+    public HttpClient AnonymousClient() => _factory!.CreateClient();
+
+    public static async Task<UserInfo> RegisterAsync(
+        HttpClient client, string email, string password, string? inviteToken = null)
+    {
+        var response = await client.PostAsJsonAsync(
+            "/api/auth/register", new { email, password, inviteToken }, TestContext.Current.CancellationToken);
+        Assert.True(response.IsSuccessStatusCode,
+            $"Register failed: {(int)response.StatusCode} {await response.Content.ReadAsStringAsync()}");
+        return (await response.Content.ReadFromJsonAsync<UserInfo>())!;
+    }
+
+    // The admin creates an invite; returns the one-time token.
+    public async Task<string> CreateInviteAsync()
+    {
+        var response = await Http.PostAsync("/api/admin/invites", null, TestContext.Current.CancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<InviteInfo>())!.Token;
+    }
+
+    // A second, non-admin user (via an invite), signed in on its own client.
+    public async Task<(HttpClient Client, UserInfo User)> CreateUserClientAsync()
+    {
+        var client = AnonymousClient();
+        var user = await RegisterAsync(client, $"{Guid.NewGuid():N}@integration.test", TestPassword, await CreateInviteAsync());
+        return (client, user);
+    }
+
+    // A brand-new, empty Postgres database (same container) with the init
+    // scripts applied -- for tests about first-run setup, which need "no users yet".
+    public async Task<string> CreateFreshPostgresDatabaseAsync()
+    {
+        var name = $"fresh_{Guid.NewGuid():N}";
+        await using (var create = Postgres.CreateCommand($"CREATE DATABASE {name}")) // name is ours, not user input
+        {
+            await create.ExecuteNonQueryAsync();
+        }
+
+        var connectionString = new NpgsqlConnectionStringBuilder(PostgresConnectionString) { Database = name }.ToString();
+        await using var dataSource = NpgsqlDataSource.Create(connectionString);
+        await ApplyPostgresScriptsAsync(dataSource);
+        return connectionString;
+    }
 
     public static Task<HttpResponseMessage> PostEventAsync(HttpClient http, object body)
     {
@@ -118,13 +187,18 @@ public sealed class ApiFixture : IAsyncLifetime
 
     // Creates a fresh site with a unique domain; all standard events enabled
     // except the ones listed. Postgres generates the tracking ID.
-    public async Task<TestSite> CreateSiteAsync(string visitorIdMode = "hash", params string[] disabledStandardEvents)
+    public Task<TestSite> CreateSiteAsync(string visitorIdMode = "hash", params string[] disabledStandardEvents) =>
+        CreateSiteAsync(AdminUserId, visitorIdMode, disabledStandardEvents);
+
+    // Owned by the given user (the admin by default, above).
+    public async Task<TestSite> CreateSiteAsync(int ownerUserId, string visitorIdMode = "hash", params string[] disabledStandardEvents)
     {
         var domain = $"{Guid.NewGuid():N}.test";
         await using var insert = Postgres.CreateCommand(
-            "INSERT INTO sites (name, domain, visitor_id_mode) VALUES ($1, $1, $2) RETURNING id, tracking_id");
+            "INSERT INTO sites (name, domain, visitor_id_mode, owner_user_id) VALUES ($1, $1, $2, $3) RETURNING id, tracking_id");
         insert.Parameters.AddWithValue(domain);
         insert.Parameters.AddWithValue(visitorIdMode);
+        insert.Parameters.AddWithValue(ownerUserId);
         int siteId;
         string trackingId;
         await using (var reader = await insert.ExecuteReaderAsync())
@@ -306,3 +380,7 @@ public sealed record TestSite(uint Id, string TrackingId, string Domain)
 
     public override string ToString() => Id.ToString();
 }
+
+public sealed record UserInfo(int Id, string Email, bool IsAdmin);
+
+public sealed record InviteInfo(string Token, DateTime ExpiresAt);
