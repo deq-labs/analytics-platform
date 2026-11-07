@@ -166,5 +166,5 @@ public sealed class SiteStore(NpgsqlDataSource dataSource, ClickHouseClient clic
 // ClickHouse tables that hold rows per site_id (deleted along with the site).
 public static class ClickHouseTables
 {
-    public static readonly string[] PerSite = ["events"];
+    public static readonly string[] PerSite = ["events", "pageviews_hourly"];
 }

@@ -121,6 +121,23 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   / a not-yet-activated key — new keys can take ~5 min). With the file present,
   the real-DB tests run instead of skipping.
 
+### Rollups + retention (Phase 8 part 1, done 2026-11-07)
+- `clickhouse/init/002_rollups.sql`: `pageviews_hourly` (AggregatingMergeTree,
+  ORDER BY (site_id, hour); `pageviews` SimpleAggregateFunction(sum),
+  `visitors` AggregateFunction(uniq, String)) fed by materialized view
+  `pageviews_hourly_mv` (human pageviews only). The pageviews time series
+  reads it with `sum` / `uniqMerge` — buckets are whole hours, so `from` is
+  effectively rounded down to the hour. Top pages / referrers / breakdowns
+  still read raw events.
+- An MV only sees new inserts: existing DBs run `scripts/rebuild_rollups.sql`
+  once (truncate + re-aggregate; run when ingestion is quiet). Applied to the
+  dev DB 2026-11-07; totals matched raw counts.
+- **Retention** (`003_retention.sql`): raw events **13 months** (366-day max
+  range + slack), rollup **5 years**. TTL applies via background merges.
+- Site delete also deletes rollup rows (`ClickHouseTables.PerSite`).
+- Test fixture splits ClickHouse init files on line-ending `;` (HTTP takes one
+  statement per request; the container's own init uses clickhouse-client).
+
 ### Phase 7 — secret API keys (step 4, done 2026-11-07) — `Auth/ApiKeys.cs`
 - `api_keys` table (`postgres/init/005_api_keys.sql`): `apk_` + 32 random
   bytes base64url; stored as SHA-256 (fast hash is fine for 256-bit random
@@ -430,8 +447,8 @@ especially is expensive to change post-hoc):
   populate the existing ones.
 - **`ip_hash`**, not raw IP — hashed at ingestion (Phase 2), for GDPR alignment.
   Never store or log raw IP addresses.
-- **TTL is a placeholder** (1 year DELETE) — not a real retention policy. Real
-  policy is Phase 8. `ALTER TABLE ... MODIFY TTL` is cheap to change later
+- **TTL**: 13 months since Phase 8 (`003_retention.sql`; 001 still says 1 year
+  and 003 overrides it). `ALTER TABLE ... MODIFY TTL` is cheap to change later
   (metadata-only, applied by background merges), so this isn't a locked-in
   decision.
 - **`visitor_id`** is `String` — strategy decided 2026-11-06, see "Visitor

@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS analytics.events
 ENGINE = MergeTree
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (site_id, event_type, timestamp)
-TTL toDateTime(timestamp) + INTERVAL 1 YEAR DELETE  -- placeholder; real retention policy is step 8.
+TTL toDateTime(timestamp) + INTERVAL 1 YEAR DELETE  -- replaced by 003_retention.sql (13 months).
                                                      -- ALTER TABLE ... MODIFY TTL is cheap to change later,
                                                      -- it doesn't require rewriting the table.
 SETTINGS index_granularity = 8192;

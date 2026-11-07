@@ -1,4 +1,6 @@
 using System.Net;
+using ClickHouse.Driver.ADO.Parameters;
+using ClickHouse.Driver.Utility;
 using System.Net.Http.Json;
 
 namespace AnalyticsPlatform.Api.IntegrationTests;
@@ -165,6 +167,10 @@ public class SiteManagementTests(ApiFixture api)
         Assert.Equal(HttpStatusCode.NotFound,
             (await api.AnonymousClient().GetAsync($"/api/tracking/{site.TrackingId}/config", Ct)).StatusCode);
         Assert.Empty(await api.GetEventsAsync(site.Id));
+        var parameters = new ClickHouseParameterCollection();
+        parameters.AddParameter("site", site.Id);
+        Assert.Equal(0UL, await api.ClickHouse.ExecuteScalarAsync(
+            "SELECT count() FROM pageviews_hourly WHERE site_id = {site:UInt32}", parameters)); // the rollup too
     }
 
     [Fact]

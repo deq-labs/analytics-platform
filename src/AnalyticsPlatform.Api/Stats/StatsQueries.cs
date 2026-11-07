@@ -32,16 +32,22 @@ public sealed class StatsQueries(ClickHouseClient client)
             _ => ("toStartOfDay", "INTERVAL 1 DAY"),
         };
 
-        // uniq() is an approximate distinct count -- very fast, typically within
-        // ~1-2%. uniqExact() would be exact but much more memory-hungry.
-        // WITH FILL inserts the hours/days that had no events (as zeros), so a
-        // chart doesn't silently skip quiet days.
+        // Reads the hourly rollup (clickhouse/init/002_rollups.sql), not raw
+        // events: ~24 rows per site per day. Rows for one hour may not be merged
+        // yet, so it still aggregates: sum() the counts, uniqMerge() the
+        // visitor states (merging states counts a visitor seen in several
+        // hours of one day once). Buckets are whole hours/days, so `from` is
+        // effectively rounded down to the hour.
+        // WITH FILL inserts the hours/days that had no pageviews (as zeros), so
+        // a chart doesn't silently skip quiet days.
         var sql = $$"""
-            SELECT {{bucket}}(timestamp) AS bucket,
-                   count() AS pageviews,
-                   uniq(visitor_id) AS visitors
-            FROM events
-            WHERE {{PageviewFilter}}
+            SELECT {{bucket}}(hour) AS bucket,
+                   sum(pageviews) AS pageviews,
+                   uniqMerge(visitors) AS visitors
+            FROM pageviews_hourly
+            WHERE site_id = {site:UInt32}
+              AND hour >= toStartOfHour({from:DateTime64(3, 'UTC')})
+              AND hour <  {to:DateTime64(3, 'UTC')}
             GROUP BY bucket
             ORDER BY bucket WITH FILL
                 FROM {{bucket}}({from:DateTime64(3, 'UTC')})

@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using AnalyticsPlatform.Api.Ingestion;
 using ClickHouse.Driver;
 using ClickHouse.Driver.ADO.Parameters;
@@ -65,9 +66,15 @@ public sealed class ApiFixture : IAsyncLifetime
         Postgres = NpgsqlDataSource.Create(PostgresConnectionString);
 
         // Apply every init script in order, exactly like the containers do on first start.
+        // ClickHouse's HTTP interface runs one statement per request, so split
+        // each file at the semicolons that end a line.
         foreach (var file in RepoPaths.SqlFiles("clickhouse/init"))
         {
-            await ClickHouse.ExecuteNonQueryAsync(await File.ReadAllTextAsync(file));
+            var statements = Regex.Split(await File.ReadAllTextAsync(file), @";[ \t]*\r?$", RegexOptions.Multiline);
+            foreach (var statement in statements.Where(HasSql))
+            {
+                await ClickHouse.ExecuteNonQueryAsync(statement);
+            }
         }
 
         await ApplyPostgresScriptsAsync(Postgres);
@@ -81,6 +88,10 @@ public sealed class ApiFixture : IAsyncLifetime
         var admin = await RegisterAsync(Http, AdminEmail, TestPassword);
         AdminUserId = admin.Id;
     }
+
+    // False for a chunk that's only comments and blank lines (e.g. after the last ";").
+    private static bool HasSql(string chunk) =>
+        chunk.Split('\n').Any(line => line.Trim() is { Length: > 0 } text && !text.StartsWith("--", StringComparison.Ordinal));
 
     private static async Task ApplyPostgresScriptsAsync(NpgsqlDataSource dataSource)
     {
