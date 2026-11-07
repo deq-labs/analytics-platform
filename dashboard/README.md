@@ -28,6 +28,7 @@ For data to look at, seed the demo site: `scripts/dev_seed.sql`, then
 | `npm run dev` | Dev server with hot reload |
 | `npm run build` | Type-check (`tsc -b`) and production build to `dist/` |
 | `npm run lint` | Lint with oxlint |
+| `npm test` | Unit tests with Vitest (`src/*.test.ts`) |
 
 ## Layout
 

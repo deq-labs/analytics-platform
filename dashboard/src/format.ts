@@ -43,7 +43,9 @@ export function niceTicks(max: number, target = 4): number[] {
   if (max <= 0) return [0, 1]
   const rough = max / target
   const power = 10 ** Math.floor(Math.log10(rough))
-  const step = [1, 2, 2.5, 5, 10].map((m) => m * power).find((s) => s >= rough)!
+  // Counts are whole numbers, so never step by less than 1 (otherwise a tiny
+  // chart would get ticks 0, 0.25, 0.5... which round to duplicates).
+  const step = Math.max(1, [1, 2, 2.5, 5, 10].map((m) => m * power).find((s) => s >= rough)!)
   const top = Math.ceil(max / step) * step
   const ticks: number[] = []
   for (let v = 0; v <= top + step / 2; v += step) ticks.push(Math.round(v))

@@ -7,7 +7,7 @@ namespace AnalyticsPlatform.Api.Visitors;
 // "Visitor identification"). The salt lives in Postgres so every API restart
 // (and, later, every API instance) uses the same one; it's also kept in memory
 // so Postgres is only asked once per day.
-public sealed class DailySaltStore(NpgsqlDataSource dataSource, TimeProvider timeProvider)
+public sealed class DailySaltStore(NpgsqlDataSource dataSource, TimeProvider timeProvider) : IDailySaltProvider
 {
     private sealed record SaltForDay(DateOnly Day, byte[] Salt);
 

@@ -115,8 +115,7 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
 - `scripts/dev_seed.sql` creates site 1 (`hash`) and site 2 (`persistent`).
 - Deferred: check that event hostname matches the site's domain (anti-spam;
   probably Phase 7 with API keys), tracker.js caching/minification, automated
-  tests (tracker was verified with an ad-hoc Node fake-DOM harness; testing
-  approach still undecided).
+  tests for tracker.js (it was verified with an ad-hoc Node fake-DOM harness).
 
 ### Dashboard (Phase 4, done) — `dashboard/`
 - `npm run dev` with the API on 5115; Vite proxies `/api` (override with
@@ -329,7 +328,24 @@ being used).
   endpoint in `src/api.ts`, `keepPreviousData` so refetches dim instead of
   flashing), Recharts 3 for charts, oxlint for linting, plain CSS with color-role
   custom properties (no CSS framework). Exact versions locked in `package-lock.json`.
-- **Testing:** not yet decided.
+- **Testing** (decided 2026-11-07): **tests first** — every new feature or
+  refactor starts by adding/updating tests (developer's standing rule).
+  - `tests/AnalyticsPlatform.Api.Tests` — xUnit v3 (4.x) unit tests, no I/O.
+    `FakeTimeProvider` for time; `MemoryCache` gets a fake clock via an
+    `ISystemClock` adapter. `IDailySaltProvider` exists so `VisitorIdentifier`
+    can be tested without Postgres.
+  - `tests/AnalyticsPlatform.Api.IntegrationTests` — `WebApplicationFactory<Program>`
+    + Testcontainers (ClickHouse 26.3, Postgres 18 — keep in sync with
+    docker-compose; the Testcontainers default images are years old). One
+    assembly fixture applies every `*/init/*.sql` to empty DBs; environment
+    `Testing` so user secrets are never loaded. Tests isolate by creating their
+    own site. `WaitForEventsAsync` polls, so tests survive async ingestion (Phase 5).
+  - `global.json` opts into the .NET 10 **Microsoft.Testing.Platform** runner:
+    use `dotnet test --project <path>` / `--solution`, not a bare path.
+  - Dashboard: Vitest (`npm test`) for `src/*.test.ts`.
+  - Gotchas found: TestServer has no `IHttpMaxRequestBodySizeFeature` (body
+    limit is now enforced by reading the body manually); `GetCustomAttributes<T>()`
+    and ClickHouse `AddParameter` are extension methods needing their namespace.
 
 ## How this file relates to the Claude Project
 

@@ -9,7 +9,7 @@ public sealed record VisitorIdentity(string VisitorId, string IpHash);
 
 // Works out who sent an event, per the site's visitor_id_mode.
 // The raw IP address is used only inside this method and is never stored or logged.
-public sealed class VisitorIdentifier(DailySaltStore saltStore)
+public sealed class VisitorIdentifier(IDailySaltProvider saltStore)
 {
     private static readonly byte[] Separator = [0];
 

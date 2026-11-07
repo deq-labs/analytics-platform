@@ -10,8 +10,8 @@ decisions, and phase plan.
 
 ## Stack
 
-- **C# / ASP.NET Core (.NET 10)**: ingestion and query APIs
-  `src/AnalyticsPlatform.Api`; open `AnalyticsPlatform.slnx` in Visual Studio 2026
+- **C# / ASP.NET Core (.NET 10)**: ingestion and query APIs in
+  `src/AnalyticsPlatform.Api` (open `AnalyticsPlatform.slnx` in Visual Studio 2026,
   or run `dotnet run --project src/AnalyticsPlatform.Api`)
 - **ClickHouse**: event store
 - **Postgres**: app metadata (sites, per-site tracking settings)
@@ -35,3 +35,18 @@ docker compose up -d
 Schemas are created automatically on first start from `clickhouse/init/` and
 `postgres/init/`. `scripts/sanity_check.sql` contains queries that validate the
 ClickHouse schema.
+
+## Tests
+
+```sh
+dotnet test                 # all C# tests (integration tests need Docker running)
+dotnet test --project tests/AnalyticsPlatform.Api.Tests   # unit tests only, no Docker
+cd dashboard && npm test    # dashboard tests (Vitest)
+```
+
+In Visual Studio: **Test → Test Explorer → Run All**.
+
+- `tests/AnalyticsPlatform.Api.Tests` — fast unit tests (xUnit v3).
+- `tests/AnalyticsPlatform.Api.IntegrationTests` — the real API against
+  throwaway ClickHouse + Postgres containers (Testcontainers). They apply the
+  repo's init scripts to empty databases and never touch your dev databases.

@@ -36,7 +36,8 @@ builder.Services.AddHealthChecks()
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<SiteConfigStore>();
-builder.Services.AddSingleton<DailySaltStore>();
+// "When something asks for IDailySaltProvider, give it the DailySaltStore."
+builder.Services.AddSingleton<IDailySaltProvider, DailySaltStore>();
 builder.Services.AddSingleton<VisitorIdentifier>();
 builder.Services.AddSingleton<SessionTracker>();
 builder.Services.AddSingleton<EventWriter>();

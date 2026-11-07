@@ -1,6 +1,5 @@
 using System.Text.Json;
 using AnalyticsPlatform.Api.Sites;
-using Microsoft.AspNetCore.Http.Features;
 using AnalyticsPlatform.Api.Visitors;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -39,20 +38,20 @@ public static class IngestionEndpoints
         // `Content-Type: application/json`. tracker.js sends `text/plain`: that
         // keeps the cross-site request "simple" so browsers skip the extra CORS
         // preflight (OPTIONS) request before every event.
+        var body = await ReadBodyAsync(httpContext.Request, MaxBodyBytes, cancellationToken);
+        if (body is null)
+        {
+            return TypedResults.StatusCode(StatusCodes.Status413PayloadTooLarge);
+        }
+
         EventRequest? request;
         try
         {
-            httpContext.Features.Get<IHttpMaxRequestBodySizeFeature>()!.MaxRequestBodySize = MaxBodyBytes;
-            request = await JsonSerializer.DeserializeAsync<EventRequest>(
-                httpContext.Request.Body, JsonSerializerOptions.Web, cancellationToken);
+            request = JsonSerializer.Deserialize<EventRequest>(body, JsonSerializerOptions.Web);
         }
         catch (JsonException)
         {
             return InvalidBody();
-        }
-        catch (BadHttpRequestException ex) when (ex.StatusCode == StatusCodes.Status413PayloadTooLarge)
-        {
-            return TypedResults.StatusCode(StatusCodes.Status413PayloadTooLarge);
         }
 
         if (request is null)
@@ -100,7 +99,7 @@ public static class IngestionEndpoints
                 Path: url.AbsolutePath,
                 Hostname: url.Host,
                 Referrer: request.Referrer ?? "",
-                ReferrerDomain: ReferrerDomainOf(request.Referrer),
+                ReferrerDomain: ReferrerDomain.From(request.Referrer),
                 UserAgent: userAgent,
                 ScreenWidth: request.ScreenWidth ?? 0,
                 ScreenHeight: request.ScreenHeight ?? 0,
@@ -111,19 +110,32 @@ public static class IngestionEndpoints
         return TypedResults.NoContent();
     }
 
-    // "https://www.Google.com/search?q=x" -> "google.com", so "top referrers"
-    // groups www and non-www together. Uri already lowercases the host.
-    // `host[4..]` is a *range*: everything from index 4 to the end.
-    // Full referrer/UTM parsing (search engine names, campaigns) is Phase 6.
-    private static string ReferrerDomainOf(string? referrer)
+    // Reads the request body, but gives up (returns null) as soon as it's over
+    // `maxBytes`, so a huge or endless upload can't eat memory. Done by hand
+    // rather than via the server's IHttpMaxRequestBodySizeFeature, which not
+    // every host provides (the in-memory test server doesn't, and the integration
+    // tests caught the crash that caused).
+    private static async Task<byte[]?> ReadBodyAsync(HttpRequest request, long maxBytes, CancellationToken cancellationToken)
     {
-        if (!EventRequestValidator.IsHttpUrl(referrer, out var uri))
+        if (request.ContentLength > maxBytes)
         {
-            return "";
+            return null; // reject before reading anything
         }
 
-        var host = uri.Host;
-        return host.StartsWith("www.", StringComparison.Ordinal) ? host[4..] : host;
+        using var buffer = new MemoryStream();
+        var chunk = new byte[4096];
+        int read;
+        while ((read = await request.Body.ReadAsync(chunk, cancellationToken)) > 0)
+        {
+            if (buffer.Length + read > maxBytes)
+            {
+                return null;
+            }
+
+            buffer.Write(chunk, 0, read);
+        }
+
+        return buffer.ToArray();
     }
 
     private static ValidationProblem InvalidBody() =>

@@ -2,4 +2,8 @@
   <Folder Name="/src/">
     <Project Path="src/AnalyticsPlatform.Api/AnalyticsPlatform.Api.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AnalyticsPlatform.Api.IntegrationTests/AnalyticsPlatform.Api.IntegrationTests.csproj" />
+    <Project Path="tests/AnalyticsPlatform.Api.Tests/AnalyticsPlatform.Api.Tests.csproj" />
+  </Folder>
 </Solution>
