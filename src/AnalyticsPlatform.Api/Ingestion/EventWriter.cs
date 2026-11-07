@@ -16,6 +16,7 @@ public sealed record EventRow(
     string Path,
     string Hostname,
     string Referrer,
+    string ReferrerDomain,
     string UserAgent,
     ushort ScreenWidth,
     ushort ScreenHeight,
@@ -30,7 +31,7 @@ public sealed class EventWriter(ClickHouseClient client)
     private static readonly string[] Columns =
     [
         "site_id", "event_type", "event_name", "timestamp", "session_id", "visitor_id",
-        "url", "path", "hostname", "referrer", "user_agent",
+        "url", "path", "hostname", "referrer", "referrer_domain", "user_agent",
         "screen_width", "screen_height", "ip_hash", "properties",
     ];
 
@@ -40,7 +41,7 @@ public sealed class EventWriter(ClickHouseClient client)
         object[] row =
         [
             e.SiteId, e.EventType, e.EventName, e.Timestamp, e.SessionId, e.VisitorId,
-            e.Url, e.Path, e.Hostname, e.Referrer, e.UserAgent,
+            e.Url, e.Path, e.Hostname, e.Referrer, e.ReferrerDomain, e.UserAgent,
             e.ScreenWidth, e.ScreenHeight, e.IpHash, e.Properties,
         ];
 

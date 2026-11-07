@@ -100,6 +100,7 @@ public static class IngestionEndpoints
                 Path: url.AbsolutePath,
                 Hostname: url.Host,
                 Referrer: request.Referrer ?? "",
+                ReferrerDomain: ReferrerDomainOf(request.Referrer),
                 UserAgent: userAgent,
                 ScreenWidth: request.ScreenWidth ?? 0,
                 ScreenHeight: request.ScreenHeight ?? 0,
@@ -108,6 +109,21 @@ public static class IngestionEndpoints
             cancellationToken);
 
         return TypedResults.NoContent();
+    }
+
+    // "https://www.Google.com/search?q=x" -> "google.com", so "top referrers"
+    // groups www and non-www together. Uri already lowercases the host.
+    // `host[4..]` is a *range*: everything from index 4 to the end.
+    // Full referrer/UTM parsing (search engine names, campaigns) is Phase 6.
+    private static string ReferrerDomainOf(string? referrer)
+    {
+        if (!EventRequestValidator.IsHttpUrl(referrer, out var uri))
+        {
+            return "";
+        }
+
+        var host = uri.Host;
+        return host.StartsWith("www.", StringComparison.Ordinal) ? host[4..] : host;
     }
 
     private static ValidationProblem InvalidBody() =>

@@ -64,3 +64,22 @@ Content-Type: application/json
   "name": "scroll",
   "url": "https://localhost/"
 }
+
+###############################################################################
+# Stats (Phase 3). Site 5 = "Demo data" -- check your id with the last lines of
+# scripts/dev_seed.sql, and fill it with scripts/dev_events.sql.
+# Dates are UTC. Omit from/to for the last 7 days.
+###############################################################################
+@demoSite = 5
+
+### Pageviews per day
+GET {{api}}/api/sites/{{demoSite}}/stats/pageviews?interval=day
+
+### Pageviews per hour (ranges up to 31 days)
+GET {{api}}/api/sites/{{demoSite}}/stats/pageviews?interval=hour&from=2026-11-06&to=2026-11-07
+
+### Top pages
+GET {{api}}/api/sites/{{demoSite}}/stats/top-pages?limit=10
+
+### Top referrers (counted per session; "domain": null = direct)
+GET {{api}}/api/sites/{{demoSite}}/stats/top-referrers?limit=10

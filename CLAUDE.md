@@ -118,6 +118,32 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   tests (tracker was verified with an ad-hoc Node fake-DOM harness; testing
   approach still undecided).
 
+### Query API (Phase 3, done)
+- `GET /api/sites/{id}/stats/pageviews?from&to&interval=hour|day`,
+  `/top-pages?from&to&limit`, `/top-referrers?from&to&limit` (`Stats/`).
+  Dates parsed as UTC (`AssumeUniversal`); default range last 7 days; max 366
+  days, hourly max 31 days; limit 1–100 (default 10). 404 unknown site, 400
+  ValidationProblem otherwise. **No CORS and no auth** — local only until Phase 7.
+- Every query filters `site_id, event_type, timestamp` (sort-key order);
+  `EXPLAIN indexes = 1` confirmed partition + primary-key pruning.
+- `uniq()` (approximate) for visitors. Time series uses `WITH FILL` for empty
+  buckets; `toStartOfDay/Hour` return `DateTime`, so the `TO` bound needs
+  `toDateTime(...)` or WITH FILL errors on mismatched types.
+- **Top referrers are per session**: `argMin(referrer_domain, timestamp)` per
+  `session_id` = entry referrer; self-referrals count as direct (`domain: null`).
+- **`referrer_domain` is now populated at ingestion** (host, lowercased, `www.`
+  stripped) — pulled forward from Phase 6 because top referrers needs it. UTM
+  and search-engine parsing remain Phase 6. Rows ingested before 2026-11-07
+  have it empty.
+- Gotchas: a ClickHouse query parameter named `limit` collides with the
+  built-in `limit` setting — use `top_n`. `AddParameter` is an extension method
+  in `ClickHouse.Driver.Utility`.
+- Known caveat: hash-mode `visitor_id` changes daily, so multi-day "visitors"
+  totals overcount for hash sites (per-bucket daily numbers are fine).
+- Timezone: all buckets are UTC. Per-site timezone is a later decision.
+- `scripts/dev_events.sql` generates 25k pageviews over 30 days for the
+  `demo.localhost` site (`--param_site=<id>`).
+
 ## Hard requirement: verify current library versions
 
 Package knowledge from training data goes stale, and this ecosystem moves fast
@@ -161,9 +187,8 @@ whether to proceed or defer it, rather than silently building it.
    originally — grew when the GA+Rybbit standard-events decision landed (see
    "Standard (auto-tracked) events" above). Reject/ignore custom event names
    that collide with the reserved standard-event names at this layer.
-3. **Query API + raw dashboard reads** — read endpoints: pageviews over time, top
-   pages, top referrers. Validate via curl/Postman before any UI exists. Fix slow
-   queries now.
+3. **Query API + raw dashboard reads** — ✅ done (see "Query API" under Current
+   state). Read endpoints: pageviews over time, top pages, top referrers.
 4. **React dashboard (v1 views only)** — time series chart, top pages table, top
    referrers table, geo/device breakdown. Exactly these four. Resist adding more.
 5. **Batching + async ingestion** — buffer events, batch-write to ClickHouse
@@ -181,7 +206,7 @@ whether to proceed or defer it, rather than silently building it.
    retention policy (current TTL is a placeholder), then whatever's next from the
    backlog. Also the point to evaluate whether the Python service earns its place.
 
-We are currently between **Phase 2 (done 2026-11-07) and Phase 3 (next)**.
+We are currently between **Phase 3 (done 2026-11-07) and Phase 4 (next)**.
 
 ## Current state
 

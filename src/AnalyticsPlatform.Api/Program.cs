@@ -1,6 +1,7 @@
 using AnalyticsPlatform.Api.Health;
 using AnalyticsPlatform.Api.Ingestion;
 using AnalyticsPlatform.Api.Sites;
+using AnalyticsPlatform.Api.Stats;
 using AnalyticsPlatform.Api.Visitors;
 using ClickHouse.Driver;
 using Npgsql;
@@ -40,6 +41,9 @@ builder.Services.AddSingleton<VisitorIdentifier>();
 builder.Services.AddSingleton<SessionTracker>();
 builder.Services.AddSingleton<EventWriter>();
 
+// Dashboard queries.
+builder.Services.AddSingleton<StatsQueries>();
+
 // CORS: browsers block a page on site A from reading responses from site B
 // (this API) unless B says it's allowed. The tracker runs on customers' sites,
 // i.e. on any origin, so the tracker endpoints allow every origin -- but never
@@ -65,6 +69,10 @@ app.MapHealthChecks("/health", new() { ResponseWriter = HealthResponseWriter.Wri
 var trackerApi = app.MapGroup("").RequireCors(TrackerCorsPolicy);
 trackerApi.MapIngestionEndpoints();
 trackerApi.MapSiteEndpoints();
+
+// Dashboard reads. Deliberately outside the tracker group: no CORS for any
+// origin here. (No auth either, yet -- Phase 7.)
+app.MapStatsEndpoints();
 
 // A test page that loads tracker.js, only when running locally.
 if (app.Environment.IsDevelopment())
