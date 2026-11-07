@@ -161,7 +161,9 @@ public sealed class ApiFixture : IAsyncLifetime
     {
         const string sql = """
             SELECT event_type, event_name, url, path, hostname, visitor_id, toString(session_id),
-                   referrer, referrer_domain, ip_hash, user_agent, screen_width, toJSONString(properties)
+                   referrer, referrer_domain, ip_hash, user_agent, screen_width, toJSONString(properties),
+                   browser, browser_version, os, os_version, device_type, is_bot,
+                   utm_source, utm_medium, utm_campaign, utm_term, utm_content
             FROM events
             WHERE site_id = {site:UInt32}
             ORDER BY timestamp, event_name
@@ -178,7 +180,12 @@ public sealed class ApiFixture : IAsyncLifetime
                 reader.GetString(4), reader.GetString(5), Guid.Parse(reader.GetString(6)),
                 reader.GetString(7), reader.GetString(8), reader.GetString(9), reader.GetString(10),
                 reader.GetFieldValue<ushort>(11),
-                JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(12))!));
+                JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(12))!,
+                reader.GetString(13), reader.GetString(14), reader.GetString(15), reader.GetString(16),
+                reader.GetString(17), reader.GetFieldValue<byte>(18) == 1,
+                new Enrichment.UtmTags(
+                    reader.GetString(19), reader.GetString(20), reader.GetString(21),
+                    reader.GetString(22), reader.GetString(23))));
         }
 
         return events;
@@ -206,10 +213,11 @@ public sealed class ApiFixture : IAsyncLifetime
 
     public Task SeedPageviewsAsync(uint siteId, IEnumerable<SeedPageview> pageviews)
     {
-        string[] columns = ["site_id", "event_type", "timestamp", "session_id", "visitor_id", "url", "path", "hostname", "referrer_domain"];
+        string[] columns = ["site_id", "event_type", "timestamp", "session_id", "visitor_id", "url", "path", "hostname", "referrer_domain", "is_bot"];
         var rows = pageviews.Select(p => new object[]
         {
             siteId, p.EventType, p.Time, p.Session, p.Visitor, $"https://{p.Hostname}{p.Path}", p.Path, p.Hostname, p.ReferrerDomain,
+            (byte)(p.IsBot ? 1 : 0),
         });
         return ClickHouse.InsertBinaryAsync("events", columns, rows);
     }
@@ -228,7 +236,14 @@ public sealed record StoredEvent(
     string IpHash,
     string UserAgent,
     ushort ScreenWidth,
-    Dictionary<string, string> Properties);
+    Dictionary<string, string> Properties,
+    string Browser,
+    string BrowserVersion,
+    string Os,
+    string OsVersion,
+    string DeviceType,
+    bool IsBot,
+    Enrichment.UtmTags Utm);
 
 public sealed record SeedPageview(
     DateTime Time,
@@ -237,7 +252,8 @@ public sealed record SeedPageview(
     Guid Session = default,
     string ReferrerDomain = "",
     string Hostname = "site.test",
-    string EventType = "pageview");
+    string EventType = "pageview",
+    bool IsBot = false);
 
 public static class RepoPaths
 {

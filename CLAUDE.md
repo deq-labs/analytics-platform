@@ -82,6 +82,26 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   sessions; single instance only; hash-mode sessions split at UTC midnight
   (visitor_id changes with the salt). Revisit with Phase 5.
 
+### Enrichment (Phase 6, partial) — `src/AnalyticsPlatform.Api/Enrichment/`
+- **User agent → `browser`, `browser_version`, `os`, `os_version`,
+  `device_type`, `is_bot`** via **DeviceDetector.NET 6.5.x** (port of Matomo's
+  device detector; chosen 2026-11-07 over UAParser, abandoned since 2021, and
+  MyCSharp.HttpUserAgentParser, no tablet detection). `UserAgentParser`
+  caches results per UA string (own `MemoryCache`, SizeLimit 10k), parses at
+  most 512 chars, versions truncated to major ("140").
+- `device_type` ∈ desktop | mobile (smartphone/phablet/feature phone) | tablet
+  | other | "".
+- **Bots:** `is_bot = 1` for DeviceDetector bots, HTTP libraries (curl,
+  python-requests…) and empty UAs. Bots are **stored, not rejected** (still
+  202), and every stats query filters `is_bot = 0`.
+- **UTM:** `utm_source/medium/campaign/term/content` from the page URL's query
+  string (`UtmTags.FromUrl`): names case-insensitive, values URL-decoded,
+  trimmed, case kept, capped at 100 chars, first value wins.
+- Known limits: Chrome freezes the OS version in the UA (Windows 11 reports
+  "10") — fixing needs User-Agent Client Hints (`Sec-CH-UA-*`), not done.
+  Search-engine/social classification of referrers not done.
+- Next: GeoLite2 (needs MaxMind key), then breakdown endpoints + dashboard card.
+
 ### Batched ingestion (Phase 5, done)
 - Endpoint → `EventQueue` (bounded `Channel<EventRow>`, single reader) →
   `EventBatchWriter` (`BackgroundService`) → `IEventStore`
@@ -233,9 +253,12 @@ whether to proceed or defer it, rather than silently building it.
    breakdown (empty state until Phase 6). Exactly these four. Resist adding more.
 5. **Batching + async ingestion** — ✅ done 2026-11-07 (see "Batched ingestion"
    under Current state).
-6. **Enrichment at ingestion** — IP geolocation (MaxMind GeoLite2), user-agent
-   parsing, referrer/UTM parsing. The schema already has placeholder columns for
-   this (see below) — populate them, don't restructure the table.
+6. **Enrichment at ingestion** — 🟡 in progress. ✅ user-agent parsing + bot
+   flag + UTM tags (2026-11-07, see "Enrichment" under Current state).
+   ⏳ IP geolocation (MaxMind GeoLite2) — waiting on the developer's MaxMind
+   account/licence key. Then: device/browser/geo breakdown endpoints + the
+   dashboard's "Locations & devices" card. Populate existing columns, don't
+   restructure the table.
 7. **Auth, multi-site, API keys** — Postgres-backed users, site registration,
    per-site API keys for the tracking snippet. The `sites` and
    `site_tracked_events` tables themselves already exist (pulled forward, see
@@ -245,7 +268,7 @@ whether to proceed or defer it, rather than silently building it.
    retention policy (current TTL is a placeholder), then whatever's next from the
    backlog. Also the point to evaluate whether the Python service earns its place.
 
-We are currently between **Phase 5 (done 2026-11-07) and Phase 6 (next)**.
+We are currently **in Phase 6** (UA + UTM done; GeoIP pending a MaxMind key).
 The v1 core loop (snippet → C# ingestion → ClickHouse → dashboard) works end to end.
 
 ## Current state
@@ -280,10 +303,10 @@ especially is expensive to change post-hoc):
   pairs used for filtering/grouping, not nested structures. Revisit if custom
   event schemas become nested — the native JSON type is production-ready as of
   25.3 and would be the right call for that case.
-- **Browser/OS/geo columns already exist** (`browser`, `os`, `device_type`,
-  `country_code`, `region`, `city`, etc.) but are empty (`DEFAULT ''`) until Phase
-  6 enrichment lands. Don't add new columns for these — populate the existing
-  ones.
+- **Browser/OS/device and UTM columns are populated** since Phase 6 (see
+  "Enrichment"); **geo columns** (`country_code`, `region`, `city`) are still
+  empty until GeoIP lands. Don't add new columns for these — populate the
+  existing ones.
 - **`ip_hash`**, not raw IP — hashed at ingestion (Phase 2), for GDPR alignment.
   Never store or log raw IP addresses.
 - **TTL is a placeholder** (1 year DELETE) — not a real retention policy. Real

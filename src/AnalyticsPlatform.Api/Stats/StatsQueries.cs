@@ -20,6 +20,7 @@ public sealed class StatsQueries(ClickHouseClient client)
           AND event_type = 'pageview'
           AND timestamp >= {from:DateTime64(3, 'UTC')}
           AND timestamp <  {to:DateTime64(3, 'UTC')}
+          AND is_bot = 0
         """;
 
     public async Task<IReadOnlyList<TimeSeriesPoint>> PageviewsOverTimeAsync(

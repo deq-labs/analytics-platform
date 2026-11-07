@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AnalyticsPlatform.Api.Enrichment;
 using AnalyticsPlatform.Api.Sites;
 using AnalyticsPlatform.Api.Visitors;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -33,6 +34,7 @@ public static class IngestionEndpoints
         VisitorIdentifier visitorIdentifier,
         SessionTracker sessionTracker,
         EventQueue eventQueue,
+        UserAgentParser userAgentParser,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
@@ -106,7 +108,12 @@ public static class IngestionEndpoints
             ScreenWidth: request.ScreenWidth ?? 0,
             ScreenHeight: request.ScreenHeight ?? 0,
             IpHash: visitor.IpHash,
-            Properties: request.Properties ?? []);
+            Properties: request.Properties ?? [],
+            // Enrichment (Phase 6). Bots are stored with is_bot = 1 and filtered out
+            // of stats, rather than rejected: no signal for bots to adapt to, and
+            // the raw data stays inspectable.
+            Client: userAgentParser.Parse(userAgent),
+            Utm: UtmTags.FromUrl(url));
 
         if (!eventQueue.TryEnqueue(row))
         {

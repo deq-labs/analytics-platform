@@ -1,3 +1,4 @@
+using AnalyticsPlatform.Api.Enrichment;
 using AnalyticsPlatform.Api.Health;
 using AnalyticsPlatform.Api.Ingestion;
 using AnalyticsPlatform.Api.Sites;
@@ -40,6 +41,7 @@ builder.Services.AddSingleton<SiteConfigStore>();
 builder.Services.AddSingleton<IDailySaltProvider, DailySaltStore>();
 builder.Services.AddSingleton<VisitorIdentifier>();
 builder.Services.AddSingleton<SessionTracker>();
+builder.Services.AddSingleton<UserAgentParser>(); // Phase 6 enrichment (caches per user agent)
 
 // Buffered ingestion (Phase 5): endpoint -> EventQueue -> EventBatchWriter -> ClickHouse.
 // Settings come from the "Ingestion" config section; ValidateOnStart makes a bad

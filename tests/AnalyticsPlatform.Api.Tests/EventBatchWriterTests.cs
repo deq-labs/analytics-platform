@@ -1,3 +1,4 @@
+using AnalyticsPlatform.Api.Enrichment;
 using AnalyticsPlatform.Api.Ingestion;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -70,7 +71,8 @@ public class EventBatchWriterTests : IAsyncDisposable
         SiteId: 1, EventType: "pageview", EventName: "", Timestamp: DateTime.UtcNow,
         SessionId: Guid.NewGuid(), VisitorId: "h:test", Url: $"https://site.test/{i}", Path: $"/{i}",
         Hostname: "site.test", Referrer: "", ReferrerDomain: "", UserAgent: "", ScreenWidth: 0,
-        ScreenHeight: 0, IpHash: "", Properties: []);
+        ScreenHeight: 0, IpHash: "", Properties: [],
+        Client: new("Chrome", "140", "Windows", "10", "desktop", IsBot: false), Utm: UtmTags.None);
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
