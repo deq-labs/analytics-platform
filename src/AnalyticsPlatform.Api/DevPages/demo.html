@@ -29,8 +29,26 @@
   <p>Open DevTools &rarr; <b>Network</b> to watch the requests, then check ClickHouse at
      <a href="http://localhost:8123/play" target="_blank">localhost:8123/play</a>.</p>
 
+  <h2>Standard events</h2>
+  <p>
+    <a href="https://example.com/" target="_blank">Outbound link (example.com)</a> &middot;
+    <a href="/files/report.pdf" target="_blank">PDF download</a> &middot;
+    <a href="/tracker.js" download>Download attribute</a>
+  </p>
+  <form id="signup" name="signup" action="/signup" onsubmit="event.preventDefault()">
+    <input name="email" placeholder="Type here (form_start)">
+    <button>Submit (form_submit)</button>
+  </form>
+  <p><video controls muted width="320" title="Demo flower video"
+            src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"></video></p>
+  <p>Scroll down for scroll-depth events.</p>
+
   <h2>Requests sent</h2>
   <div id="log"></div>
+  <div style="height: 200vh; border-left: 4px dashed #8884; margin-top: 1rem; padding-left: 1rem">
+    Scroll space&hellip;
+  </div>
+  <p>Bottom of the page (100%).</p>
 
   <script>
     // Log every request tracker.js makes, so you can see them on the page.

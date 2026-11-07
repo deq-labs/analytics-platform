@@ -82,7 +82,7 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   sessions; single instance only; hash-mode sessions split at UTC midnight
   (visitor_id changes with the salt). Revisit with Phase 5.
 
-### Ingestion API (Phase 2, in progress)
+### Ingestion API (Phase 2, done)
 - `POST /api/events` — JSON `EventRequest` (`siteId`, `type`, `name`, `url`,
   `referrer`, `visitorId`, `screenWidth`, `screenHeight`, `properties`).
   Validates, resolves the site (cached 1 min), computes visitor/session/ip_hash,
@@ -100,11 +100,23 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   `keepalive` + text/plain, queues events until config loads,
   `analyticsPlatform.track/consent/revokeConsent`, optional
   `data-wait-for-consent`. Persistent ID in `localStorage` key `ap_visitor_id`.
+- **Standard events in tracker.js** — listeners always attached; `send()`
+  drops any standard event not in the site's `standardEvents`. Property
+  conventions (all values strings, clipped to 500 chars):
+  `scroll {depth: 25|50|75|90}` (once each per page, reset on SPA pageview),
+  `outbound_click {url, domain}` (different hostname, http(s), left/middle click),
+  `file_download {url, extension}` (extension list or `download` attr; takes
+  precedence over outbound), `form_start`/`form_submit {form_id, form_name,
+  form_action}` (form_start = first `input` event per form; **field values are
+  never read**), `video_start`/`video_progress {percent: 25|50|75}`/
+  `video_complete {percent: 100}` with `{video_url (query stripped), video_title}`
+  — native `<video>` only; YouTube/Vimeo iframes need their player APIs (not v1).
 - `/demo` (Development only) — `DevPages/demo.html` exercises the tracker.
 - `scripts/dev_seed.sql` creates site 1 (`hash`) and site 2 (`persistent`).
-- Not built yet: **standard-event auto-instrumentation in tracker.js** (last
-  Phase 2 item), check that event hostname matches the site's domain
-  (anti-spam; probably Phase 7 with API keys), tracker.js caching/minification.
+- Deferred: check that event hostname matches the site's domain (anti-spam;
+  probably Phase 7 with API keys), tracker.js caching/minification, automated
+  tests (tracker was verified with an ad-hoc Node fake-DOM harness; testing
+  approach still undecided).
 
 ## Hard requirement: verify current library versions
 
@@ -140,7 +152,7 @@ whether to proceed or defer it, rather than silently building it.
 ## Implementation phases
 
 1. **ClickHouse schema + local infra** — ✅ done. See "Current state" below.
-2. **C# ingestion API (minimal)** — smallest possible HTTP endpoint accepting a
+2. **C# ingestion API (minimal)** — ✅ done (see "Ingestion API" under Current state) — smallest possible HTTP endpoint accepting a
    pageview event, writing synchronously to ClickHouse. No batching, no auth yet.
    Paired with a JS tracking snippet that does the beacon on page load **and**
    auto-instruments the standard-event set (scroll/click/form/video/download
@@ -169,7 +181,7 @@ whether to proceed or defer it, rather than silently building it.
    retention policy (current TTL is a placeholder), then whatever's next from the
    backlog. Also the point to evaluate whether the Python service earns its place.
 
-We are currently between **Phase 1 (done) and Phase 2 (next)**.
+We are currently between **Phase 2 (done 2026-11-07) and Phase 3 (next)**.
 
 ## Current state
 
