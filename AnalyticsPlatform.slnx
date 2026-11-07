@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/dashboard/">
+    <Project Path="dashboard/AnalyticsPlatform.Dashboard.esproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/AnalyticsPlatform.Api/AnalyticsPlatform.Api.csproj" />
   </Folder>

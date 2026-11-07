@@ -1,0 +1,15 @@
+<!--
+  A Visual Studio "JavaScript project" wrapper around the Vite/React app, so it
+  shows up in Solution Explorer next to the C# projects and F5 can start it.
+  It doesn't change how the app works: npm and Vite still do everything.
+  Reference: https://learn.microsoft.com/visualstudio/javascript/javascript-project-system-msbuild-reference
+-->
+<Project Sdk="Microsoft.VisualStudio.JavaScript.Sdk/1.0.7204101">
+  <PropertyGroup>
+    <!-- F5 / Start runs the Vite dev server. -->
+    <StartupCommand>npm run dev</StartupCommand>
+    <!-- Building the solution shouldn't produce a production bundle every time;
+         `npm run build` is still there when you want one. -->
+    <ShouldRunBuildScript>false</ShouldRunBuildScript>
+  </PropertyGroup>
+</Project>

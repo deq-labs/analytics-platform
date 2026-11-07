@@ -21,3 +21,6 @@ build/
 .idea/
 Thumbs.db
 .DS_Store
+
+# ...except the dashboard launch settings Visual Studio needs
+!dashboard/.vscode/

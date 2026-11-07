@@ -1,0 +1,21 @@
+{
+  // Visual Studio reads this when you start the dashboard project (F5):
+  // it opens a browser on the Vite dev server with the JavaScript debugger attached.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "edge",
+      "request": "launch",
+      "name": "Dashboard (Edge)",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/src"
+    },
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Dashboard (Chrome)",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/src"
+    }
+  ]
+}
