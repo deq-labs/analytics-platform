@@ -618,3 +618,12 @@ button.danger:disabled {
 .card > .hint + form {
   margin-top: 14px;
 }
+
+.confirm {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--critical);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+}

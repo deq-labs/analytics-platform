@@ -4,6 +4,9 @@ namespace AnalyticsPlatform.Api.Auth;
 
 public sealed record AppUser(int Id, string Email, string PasswordHash, bool IsAdmin);
 
+// A row in the admin's user list.
+public sealed record UserSummary(int Id, string Email, bool IsAdmin, int Sites, DateTime CreatedAt);
+
 public enum RegisterOutcome
 {
     Created,
@@ -22,6 +25,52 @@ public sealed class UserStore(NpgsqlDataSource dataSource)
     {
         await using var command = dataSource.CreateCommand("SELECT EXISTS (SELECT 1 FROM users)");
         return (bool)(await command.ExecuteScalarAsync(cancellationToken))!;
+    }
+
+    public async Task<AppUser?> FindByIdAsync(int id, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand(
+            "SELECT id, email, password_hash, is_admin FROM users WHERE id = $1");
+        command.Parameters.AddWithValue(id);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken)
+            ? new AppUser(reader.GetInt32(0), reader.GetString(1), reader.GetString(2), reader.GetBoolean(3))
+            : null;
+    }
+
+    public async Task<List<UserSummary>> ListAsync(CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand("""
+            SELECT u.id, u.email, u.is_admin, count(s.id)::int, u.created_at
+            FROM users u LEFT JOIN sites s ON s.owner_user_id = u.id
+            GROUP BY u.id ORDER BY u.created_at
+            """);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var users = new List<UserSummary>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            users.Add(new UserSummary(reader.GetInt32(0), reader.GetString(1), reader.GetBoolean(2), reader.GetInt32(3), reader.GetDateTime(4)));
+        }
+
+        return users;
+    }
+
+    // The ids of the sites a user owns (deleted with them).
+    public async Task<List<uint>> SiteIdsOwnedByAsync(int userId, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand("SELECT id FROM sites WHERE owner_user_id = $1");
+        command.Parameters.AddWithValue(userId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var ids = new List<uint>();
+        while (await reader.ReadAsync(cancellationToken)) ids.Add((uint)reader.GetInt32(0));
+        return ids;
+    }
+
+    public async Task<bool> DeleteAsync(int userId, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand("DELETE FROM users WHERE id = $1");
+        command.Parameters.AddWithValue(userId);
+        return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
     }
 
     public async Task<AppUser?> FindByEmailAsync(string email, CancellationToken cancellationToken)

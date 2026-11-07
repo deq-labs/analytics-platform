@@ -67,6 +67,14 @@ public sealed class UserAgentParser : IDisposable
         var client = detector.GetClient();
         var os = detector.GetOs();
 
+        // DeviceDetector reports automation browsers (Puppeteer and Playwright
+        // run "HeadlessChrome" by default) as ordinary browsers. They're bots here.
+        if (client.Success && client.Match.Name.StartsWith("Headless", StringComparison.OrdinalIgnoreCase)
+            || userAgent.Contains("HeadlessChrome", StringComparison.Ordinal))
+        {
+            return ClientInfo.Bot;
+        }
+
         return new ClientInfo(
             Browser: client.Success ? client.Match.Name : "",
             BrowserVersion: client.Success ? client.Match.Version : "",

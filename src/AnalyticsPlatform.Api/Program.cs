@@ -9,6 +9,8 @@ using AnalyticsPlatform.Api.Visitors;
 using ClickHouse.Driver;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -124,6 +126,8 @@ builder.Services.AddAuthentication(CookieOrApiKey)
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             return Task.CompletedTask;
         };
+        // Check every session against the database (deleted / demoted users).
+        options.Events.OnValidatePrincipal = AuthEndpoints.ValidateSessionAsync;
         options.Events.OnRedirectToAccessDenied = context =>
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
@@ -137,6 +141,40 @@ builder.Services.AddAuthorization(options =>
         .AddAuthenticationSchemes(CookieAuthenticationDefaults.AuthenticationScheme)
         .RequireAuthenticatedUser());
 });
+
+// --- Deployment -----------------------------------------------------------------
+// Behind a reverse proxy (Caddy, nginx, a cloud load balancer) the API sees the
+// proxy's IP and plain HTTP. ForwardedHeaders:Enabled makes it believe the
+// proxy's X-Forwarded-For / X-Forwarded-Proto instead -- real client IPs for
+// GeoIP, visitor hashing and rate limiting, and Secure cookies. Only enable it
+// when the API is reachable ONLY through the proxy, otherwise anyone could send
+// those headers. Optionally pin the proxy with ForwardedHeaders:KnownProxies.
+var forwardedHeadersEnabled = builder.Configuration.GetValue<bool>("ForwardedHeaders:Enabled");
+if (forwardedHeadersEnabled)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        var knownProxies = builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [];
+        // The defaults trust only localhost; in a container the proxy has another IP.
+        options.KnownIPNetworks.Clear();
+        options.KnownProxies.Clear();
+        foreach (var proxy in knownProxies)
+        {
+            options.KnownProxies.Add(System.Net.IPAddress.Parse(proxy));
+        }
+    });
+}
+
+// The session cookie is encrypted with ASP.NET Core Data Protection keys. By
+// default they live in the user profile, which a container loses on restart
+// (signing everyone out). DataProtection:KeysPath = a persistent volume.
+if (builder.Configuration["DataProtection:KeysPath"] is { Length: > 0 } keysPath)
+{
+    builder.Services.AddDataProtection()
+        .SetApplicationName("AnalyticsPlatform")
+        .PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+}
 
 // Login/register attempts per client IP per minute (Auth:AttemptsPerMinute).
 builder.Services.AddRateLimiter(options =>
@@ -154,6 +192,11 @@ builder.Services.AddRateLimiter(options =>
 var app = builder.Build();
 
 // --- Middleware (runs on every request, in this order) ---------------------------
+if (forwardedHeadersEnabled)
+{
+    app.UseForwardedHeaders(); // first, so everything after sees the real client
+}
+
 app.UseStaticFiles(); // serves files in wwwroot/, e.g. /tracker.js
 app.UseCors();
 app.UseAuthentication(); // reads the session cookie -> HttpContext.User

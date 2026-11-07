@@ -17,6 +17,7 @@ import {
 import { Card, QueryState } from './Card'
 import { ApiKeysCard } from './ApiKeysCard'
 import { CopyButton } from './CopyButton'
+import { UsersCard } from './UsersCard'
 
 // The "Settings" view: add sites, set each one up, and (admins) invite people.
 export function SitesPage({
@@ -36,6 +37,7 @@ export function SitesPage({
       <AddSite onCreated={onSelectSite} first={sites?.length === 0} />
       <ApiKeysCard siteId={siteId} />
       {user.isAdmin && <Invites />}
+      {user.isAdmin && <UsersCard me={user} />}
     </div>
   )
 }

@@ -121,6 +121,23 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   / a not-yet-activated key — new keys can take ~5 min). With the file present,
   the real-DB tests run instead of skipping.
 
+### Users, sessions, deployment settings (Phase 8 part 2, done 2026-11-07)
+- **Sessions follow the database**: the cookie's `OnValidatePrincipal` →
+  `AuthEndpoints.ValidateSessionAsync` looks the user up by id on every request
+  to an endpoint that requires auth (endpoints without `IAuthorizeData` are
+  skipped — a burst of tracker events carrying the cookie exhausted the
+  Postgres pool in a test). Deleted user → 401 + cookie cleared; admin flag
+  or email changed → fresh claims, cookie re-issued.
+- `GET /api/admin/users` (with site counts), `DELETE /api/admin/users/{id}`
+  (not yourself → 400; deletes their sites through `SiteStore` so ClickHouse
+  rows go too). Dashboard: "Users" card for admins, inline confirm.
+- **`ForwardedHeaders:Enabled`** (+ optional `ForwardedHeaders:KnownProxies`):
+  trusts X-Forwarded-For/Proto from the proxy (real IPs for geo/hashing/rate
+  limits, Secure cookies). Only when the API is reachable solely via the proxy.
+- **`DataProtection:KeysPath`**: persists cookie-encryption keys (a volume in
+  containers, or everyone is signed out on restart).
+- `Headless Chrome` / `HeadlessChrome` user agents are now `is_bot = 1`.
+
 ### Rollups + retention (Phase 8 part 1, done 2026-11-07)
 - `clickhouse/init/002_rollups.sql`: `pageviews_hourly` (AggregatingMergeTree,
   ORDER BY (site_id, hour); `pageviews` SimpleAggregateFunction(sum),
@@ -190,8 +207,7 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
 - **Cookie auth** (`ap_session`): HttpOnly, SameSite=Strict (the CSRF defence;
   dashboard is same-origin via the Vite proxy), Secure when HTTPS, 14 days
   sliding. 401/403 instead of redirects. Claims: id, email, `admin`. Note: claims
-  live in the cookie until it expires — demoting/deleting a user doesn't end
-  their session yet.
+  are re-checked against the database per request (Phase 8).
 - Endpoints: `GET /api/auth/status` (anon), `POST register|login|logout`,
   `GET /api/auth/me`, `POST /api/admin/invites` (admin policy). Login checks a
   dummy hash for unknown emails (timing) and gives one message for both cases.

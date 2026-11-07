@@ -75,6 +75,9 @@ public class UserAgentParserTests
     [InlineData("Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)")]
     [InlineData("curl/8.9.1")]                // tools aren't visitors either
     [InlineData("python-requests/2.32.3")]
+    // Automation: headless Chrome (Puppeteer/Playwright default), PhantomJS.
+    [InlineData("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/140.0.0.0 Safari/537.36")]
+    [InlineData("Mozilla/5.0 (Unknown; Linux x86_64) AppleWebKit/538.1 (KHTML, like Gecko) PhantomJS/2.1.1 Safari/538.1")]
     [InlineData("")]                          // real browsers always send a user agent
     public void Bots_tools_and_missing_user_agents_are_flagged(string userAgent)
     {
