@@ -47,19 +47,21 @@ public sealed class ApiFixture : IAsyncLifetime
     public HttpClient Http { get; private set; } = null!;
     public ClickHouseClient ClickHouse { get; private set; } = null!;
     public NpgsqlDataSource Postgres { get; private set; } = null!;
+    public string ClickHouseConnectionString { get; private set; } = "";
+    public string PostgresConnectionString { get; private set; } = "";
 
     public async ValueTask InitializeAsync()
     {
         await Task.WhenAll(_clickHouseContainer.StartAsync(), _postgresContainer.StartAsync());
 
-        var clickHouseConnectionString =
+        ClickHouseConnectionString =
             $"Host={_clickHouseContainer.Hostname};" +
             $"Port={_clickHouseContainer.GetMappedPublicPort(ClickHouseBuilder.HttpPort)};" +
             $"Username=analytics;Password={Password};Database=analytics";
-        var postgresConnectionString = _postgresContainer.GetConnectionString();
+        PostgresConnectionString = _postgresContainer.GetConnectionString();
 
-        ClickHouse = new ClickHouseClient(clickHouseConnectionString);
-        Postgres = NpgsqlDataSource.Create(postgresConnectionString);
+        ClickHouse = new ClickHouseClient(ClickHouseConnectionString);
+        Postgres = NpgsqlDataSource.Create(PostgresConnectionString);
 
         // Apply every init script in order, exactly like the containers do on first start.
         foreach (var file in RepoPaths.SqlFiles("clickhouse/init"))
@@ -73,15 +75,33 @@ public sealed class ApiFixture : IAsyncLifetime
             await command.ExecuteNonQueryAsync();
         }
 
-        // Run the API in-memory. "Testing" environment = user secrets are NOT
-        // loaded, so the API can only ever see the test containers.
-        _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        _factory = CreateFactory();
+        Http = _factory.CreateClient();
+    }
+
+    // Runs the API in-memory against the test containers. Most tests share the
+    // fixture's instance (`Http`); tests about startup/shutdown or special
+    // settings create their own with this and dispose it themselves.
+    //
+    // "Testing" environment = user secrets are NOT loaded, so the API can only
+    // ever see the test containers. A short flush interval keeps tests fast.
+    public WebApplicationFactory<Program> CreateFactory(Action<IWebHostBuilder>? configure = null) =>
+        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Testing");
-            builder.UseSetting("ConnectionStrings:ClickHouse", clickHouseConnectionString);
-            builder.UseSetting("ConnectionStrings:Postgres", postgresConnectionString);
+            builder.UseSetting("ConnectionStrings:ClickHouse", ClickHouseConnectionString);
+            builder.UseSetting("ConnectionStrings:Postgres", PostgresConnectionString);
+            builder.UseSetting("Ingestion:FlushInterval", "00:00:00.050");
+            configure?.Invoke(builder);
         });
-        Http = _factory.CreateClient();
+
+    public static Task<HttpResponseMessage> PostEventAsync(HttpClient http, object body)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/events")
+        {
+            Content = new StringContent(JsonSerializer.Serialize(body, JsonSerializerOptions.Web), Encoding.UTF8, "text/plain"),
+        };
+        return http.SendAsync(request, TestContext.Current.CancellationToken);
     }
 
     public async ValueTask DisposeAsync()

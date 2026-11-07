@@ -82,11 +82,35 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   sessions; single instance only; hash-mode sessions split at UTC midnight
   (visitor_id changes with the salt). Revisit with Phase 5.
 
+### Batched ingestion (Phase 5, done)
+- Endpoint → `EventQueue` (bounded `Channel<EventRow>`, single reader) →
+  `EventBatchWriter` (`BackgroundService`) → `IEventStore`
+  (`ClickHouseEventStore`, one `InsertBinaryAsync` per batch).
+- `IngestionOptions` from config section `Ingestion` (defaults in
+  appsettings.json): `QueueCapacity` 100k, `MaxBatchSize` 5k, `FlushInterval`
+  1s, retry backoff 0.5s → 30s. Validated on start.
+- Guarantees, each pinned by a test: batch ≤ MaxBatchSize; partial batch
+  flushed after FlushInterval; failed inserts retried with backoff, same batch,
+  in order (no loss while ClickHouse is briefly down); shutdown drains the queue;
+  full queue → 503. **At-least-once**: a retry after a lost reply can duplicate
+  a batch (ClickHouse insert dedup would need `non_replicated_deduplication_window`
+  or a ReplicatedMergeTree — not done).
+- If the host's shutdown deadline passes while ClickHouse is down, the writer
+  gives up and logs how many events were lost. `StopAsync` must not rely on a
+  `using` token registration to cancel `_giveUp` (callbacks run newest-first
+  and the registration gets disposed before firing — this hung shutdown; a test
+  catches it).
+- `timestamp` is set when the event arrives, not when it's written.
+- Still single-instance (in-memory queue + session cache). Durable queueing
+  (e.g. a disk buffer or Kafka/Redpanda) is a later decision, not v1.
+
 ### Ingestion API (Phase 2, done)
 - `POST /api/events` — JSON `EventRequest` (`siteId`, `type`, `name`, `url`,
   `referrer`, `visitorId`, `screenWidth`, `screenHeight`, `properties`).
   Validates, resolves the site (cached 1 min), computes visitor/session/ip_hash,
-  one synchronous ClickHouse insert, returns 204. Errors are 400 ValidationProblem.
+  **queues** the row and returns **202 Accepted** (see "Batched ingestion"
+  below). Errors are 400 ValidationProblem; full queue / shutting down is 503
+  with `Retry-After: 5`.
   Body is read manually (not `[FromBody]`) so it accepts `Content-Type:
   text/plain` — the tracker sends text/plain so cross-origin posts are CORS
   "simple requests" with no preflight. Body capped at 16 KB (413).
@@ -207,9 +231,8 @@ whether to proceed or defer it, rather than silently building it.
 4. **React dashboard (v1 views only)** — ✅ done (see "Dashboard" under Current
    state). Time series chart, top pages table, top referrers table, geo/device
    breakdown (empty state until Phase 6). Exactly these four. Resist adding more.
-5. **Batching + async ingestion** — buffer events, batch-write to ClickHouse
-   instead of one insert per event. Do this after the loop is trusted end-to-end,
-   not before.
+5. **Batching + async ingestion** — ✅ done 2026-11-07 (see "Batched ingestion"
+   under Current state).
 6. **Enrichment at ingestion** — IP geolocation (MaxMind GeoLite2), user-agent
    parsing, referrer/UTM parsing. The schema already has placeholder columns for
    this (see below) — populate them, don't restructure the table.
@@ -222,7 +245,7 @@ whether to proceed or defer it, rather than silently building it.
    retention policy (current TTL is a placeholder), then whatever's next from the
    backlog. Also the point to evaluate whether the Python service earns its place.
 
-We are currently between **Phase 4 (done 2026-11-07) and Phase 5 (next)**.
+We are currently between **Phase 5 (done 2026-11-07) and Phase 6 (next)**.
 The v1 core loop (snippet → C# ingestion → ClickHouse → dashboard) works end to end.
 
 ## Current state

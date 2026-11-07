@@ -52,7 +52,7 @@ public class SiteConfigAndCorsTests(ApiFixture api)
 
         Assert.Equal("*", Assert.Single(config.Headers.GetValues("Access-Control-Allow-Origin")));
         Assert.Equal("*", Assert.Single(ingest.Headers.GetValues("Access-Control-Allow-Origin")));
-        Assert.Equal(HttpStatusCode.NoContent, ingest.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, ingest.StatusCode);
     }
 
     [Theory]

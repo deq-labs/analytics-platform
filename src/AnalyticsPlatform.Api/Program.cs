@@ -40,7 +40,19 @@ builder.Services.AddSingleton<SiteConfigStore>();
 builder.Services.AddSingleton<IDailySaltProvider, DailySaltStore>();
 builder.Services.AddSingleton<VisitorIdentifier>();
 builder.Services.AddSingleton<SessionTracker>();
-builder.Services.AddSingleton<EventWriter>();
+
+// Buffered ingestion (Phase 5): endpoint -> EventQueue -> EventBatchWriter -> ClickHouse.
+// Settings come from the "Ingestion" config section; ValidateOnStart makes a bad
+// value fail at startup instead of at the first event.
+builder.Services.AddOptions<IngestionOptions>()
+    .Bind(builder.Configuration.GetSection("Ingestion"))
+    .Validate(o => o.QueueCapacity > 0 && o.MaxBatchSize > 0 && o.FlushInterval > TimeSpan.Zero,
+        "Ingestion: QueueCapacity, MaxBatchSize and FlushInterval must be positive.")
+    .ValidateOnStart();
+builder.Services.AddSingleton<EventQueue>();
+builder.Services.AddSingleton<IEventStore, ClickHouseEventStore>();
+// A hosted service: the host starts it with the app and stops it on shutdown.
+builder.Services.AddHostedService<EventBatchWriter>();
 
 // Dashboard queries.
 builder.Services.AddSingleton<StatsQueries>();

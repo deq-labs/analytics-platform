@@ -22,14 +22,17 @@ public static class IngestionEndpoints
     // `cancellationToken` from the current request, the rest from the
     // dependency injection container.
     //
-    // The return type lists every possible response (204, 400, or 413), which
-    // also documents the endpoint for anyone reading it.
-    private static async Task<Results<NoContent, ValidationProblem, StatusCodeHttpResult>> HandleEventAsync(
+    // The return type lists every possible response (202, 400, 413, or 503),
+    // which also documents the endpoint for anyone reading it.
+    //
+    // 202 Accepted (not 200/204): the event is queued, not yet in ClickHouse.
+    // EventBatchWriter stores it within about a second (Ingestion:FlushInterval).
+    private static async Task<Results<Accepted, ValidationProblem, StatusCodeHttpResult>> HandleEventAsync(
         HttpContext httpContext,
         SiteConfigStore siteConfigStore,
         VisitorIdentifier visitorIdentifier,
         SessionTracker sessionTracker,
-        EventWriter eventWriter,
+        EventQueue eventQueue,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
@@ -87,27 +90,33 @@ public static class IngestionEndpoints
 
         EventRequestValidator.IsHttpUrl(request.Url, out var url);
 
-        await eventWriter.WriteAsync(
-            new EventRow(
-                SiteId: site.Id,
-                EventType: request.Type,
-                EventName: request.Name ?? "",
-                Timestamp: timeProvider.GetUtcNow().UtcDateTime,
-                SessionId: sessionId,
-                VisitorId: visitor.VisitorId,
-                Url: request.Url,
-                Path: url.AbsolutePath,
-                Hostname: url.Host,
-                Referrer: request.Referrer ?? "",
-                ReferrerDomain: ReferrerDomain.From(request.Referrer),
-                UserAgent: userAgent,
-                ScreenWidth: request.ScreenWidth ?? 0,
-                ScreenHeight: request.ScreenHeight ?? 0,
-                IpHash: visitor.IpHash,
-                Properties: request.Properties ?? []),
-            cancellationToken);
+        var row = new EventRow(
+            SiteId: site.Id,
+            EventType: request.Type,
+            EventName: request.Name ?? "",
+            Timestamp: timeProvider.GetUtcNow().UtcDateTime, // when it arrived, not when it's written
+            SessionId: sessionId,
+            VisitorId: visitor.VisitorId,
+            Url: request.Url,
+            Path: url.AbsolutePath,
+            Hostname: url.Host,
+            Referrer: request.Referrer ?? "",
+            ReferrerDomain: ReferrerDomain.From(request.Referrer),
+            UserAgent: userAgent,
+            ScreenWidth: request.ScreenWidth ?? 0,
+            ScreenHeight: request.ScreenHeight ?? 0,
+            IpHash: visitor.IpHash,
+            Properties: request.Properties ?? []);
 
-        return TypedResults.NoContent();
+        if (!eventQueue.TryEnqueue(row))
+        {
+            // Queue full (ClickHouse down or overloaded) or the app is shutting
+            // down. Tell the client to back off instead of buffering without limit.
+            httpContext.Response.Headers.RetryAfter = "5";
+            return TypedResults.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+
+        return TypedResults.Accepted((string?)null);
     }
 
     // Reads the request body, but gives up (returns null) as soon as it's over

@@ -23,10 +23,15 @@ public sealed record EventRow(
     string IpHash,
     Dictionary<string, string> Properties);
 
-// Writes events to ClickHouse. Phase 2 deliberately does one insert per event
-// (simple, easy to debug). Phase 5 replaces this with buffered batch inserts,
-// which is how ClickHouse wants to be fed at real volume.
-public sealed class EventWriter(ClickHouseClient client)
+// Where batches of events get stored. EventBatchWriter only knows this
+// interface, so unit tests can swap in a fake that fails on demand.
+public interface IEventStore
+{
+    Task InsertAsync(IReadOnlyList<EventRow> batch, CancellationToken cancellationToken);
+}
+
+// The real store: one INSERT per batch into ClickHouse's `events` table.
+public sealed class ClickHouseEventStore(ClickHouseClient client) : IEventStore
 {
     private static readonly string[] Columns =
     [
@@ -35,16 +40,17 @@ public sealed class EventWriter(ClickHouseClient client)
         "screen_width", "screen_height", "ip_hash", "properties",
     ];
 
-    public Task WriteAsync(EventRow e, CancellationToken cancellationToken)
+    public Task InsertAsync(IReadOnlyList<EventRow> batch, CancellationToken cancellationToken)
     {
-        // Values must be in the same order as Columns above.
-        object[] row =
-        [
+        // Values must be in the same order as Columns above. `Select` is LINQ:
+        // it turns each EventRow into an object[] lazily, as the driver reads them.
+        var rows = batch.Select(e => new object[]
+        {
             e.SiteId, e.EventType, e.EventName, e.Timestamp, e.SessionId, e.VisitorId,
             e.Url, e.Path, e.Hostname, e.Referrer, e.ReferrerDomain, e.UserAgent,
             e.ScreenWidth, e.ScreenHeight, e.IpHash, e.Properties,
-        ];
+        });
 
-        return client.InsertBinaryAsync("events", Columns, [row], cancellationToken: cancellationToken);
+        return client.InsertBinaryAsync("events", Columns, rows, cancellationToken: cancellationToken);
     }
 }

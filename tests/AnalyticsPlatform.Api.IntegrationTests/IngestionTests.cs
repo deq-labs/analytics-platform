@@ -21,7 +21,7 @@ public class IngestionTests(ApiFixture api)
             screenHeight = 1080,
         }, userAgent: "Chrome/140");
 
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         var stored = Assert.Single(await api.WaitForEventsAsync(site, 1));
         Assert.Equal("pageview", stored.EventType);
         Assert.Equal("", stored.EventName);
@@ -45,7 +45,7 @@ public class IngestionTests(ApiFixture api)
         var response = await api.PostEventAsync(
             new { siteId = site, type = "pageview", url = "https://shop.test/" }, contentType: "text/plain");
 
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         Assert.Single(await api.WaitForEventsAsync(site, 1));
     }
 
