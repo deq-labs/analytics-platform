@@ -17,7 +17,7 @@ public class BatchingTests(ApiFixture api)
         var site = await api.CreateSiteAsync();
 
         var responses = await Task.WhenAll(Enumerable.Range(0, 300).Select(i =>
-            api.PostEventAsync(new { siteId = site, type = "pageview", url = $"https://shop.test/p/{i}" })));
+            api.PostEventAsync(new { trackingId = site.TrackingId, type = "pageview", url = site.Url($"/p/{i}") })));
 
         Assert.All(responses, r => Assert.Equal(HttpStatusCode.Accepted, r.StatusCode));
         var stored = await api.WaitForEventsAsync(site, 300);
@@ -35,7 +35,7 @@ public class BatchingTests(ApiFixture api)
         var http = factory.CreateClient();
         for (var i = 0; i < 5; i++)
         {
-            var response = await ApiFixture.PostEventAsync(http, new { siteId = site, type = "pageview", url = $"https://shop.test/{i}" });
+            var response = await ApiFixture.PostEventAsync(http, new { trackingId = site.TrackingId, type = "pageview", url = site.Url($"/{i}") });
             Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         }
 
@@ -68,7 +68,7 @@ public class BatchingTests(ApiFixture api)
             var responses = new List<HttpResponseMessage>();
             for (var i = 0; i < 5; i++)
             {
-                responses.Add(await ApiFixture.PostEventAsync(http, new { siteId = site, type = "pageview", url = "https://shop.test/" }));
+                responses.Add(await ApiFixture.PostEventAsync(http, new { trackingId = site.TrackingId, type = "pageview", url = site.Url("/") }));
             }
 
             var rejected = responses.Where(r => r.StatusCode == HttpStatusCode.ServiceUnavailable).ToList();

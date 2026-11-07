@@ -13,7 +13,7 @@ public class SiteConfigAndCorsTests(ApiFixture api)
         var site = await api.CreateSiteAsync("persistent", "scroll", "video_start");
 
         var config = await api.Http.GetFromJsonAsync<ConfigResponse>(
-            $"/api/sites/{site}/config", TestContext.Current.CancellationToken);
+            $"/api/tracking/{site.TrackingId}/config", TestContext.Current.CancellationToken);
 
         Assert.NotNull(config);
         Assert.Equal("persistent", config.VisitorIdMode);
@@ -26,7 +26,7 @@ public class SiteConfigAndCorsTests(ApiFixture api)
     [Fact]
     public async Task Config_for_unknown_site_is_404()
     {
-        var response = await api.Http.GetAsync("/api/sites/999999/config", TestContext.Current.CancellationToken);
+        var response = await api.Http.GetAsync("/api/tracking/ap_0000000000000000/config", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -46,9 +46,9 @@ public class SiteConfigAndCorsTests(ApiFixture api)
     {
         var site = await api.CreateSiteAsync();
 
-        var config = await SendFromOtherOrigin(HttpMethod.Get, $"/api/sites/{site}/config");
+        var config = await SendFromOtherOrigin(HttpMethod.Get, $"/api/tracking/{site.TrackingId}/config");
         var ingest = await SendFromOtherOrigin(HttpMethod.Post, "/api/events",
-            $$"""{"siteId":{{site}},"type":"pageview","url":"https://customer-site.example/"}""");
+            $$"""{"trackingId":"{{site.TrackingId}}","type":"pageview","url":"{{site.Url()}}"}""");
 
         Assert.Equal("*", Assert.Single(config.Headers.GetValues("Access-Control-Allow-Origin")));
         Assert.Equal("*", Assert.Single(ingest.Headers.GetValues("Access-Control-Allow-Origin")));

@@ -10,9 +10,9 @@ public class EventRequestValidatorTests
         string? name = null,
         string url = "https://example.com/pricing",
         string? referrer = null,
-        uint siteId = 1,
+        string? trackingId = "ap_0123456789abcdef",
         Dictionary<string, string>? properties = null) =>
-        new(siteId, type, name, url, referrer, VisitorId: null, ScreenWidth: null, ScreenHeight: null, properties);
+        new(trackingId, type, name, url, referrer, VisitorId: null, ScreenWidth: null, ScreenHeight: null, properties);
 
     private static Dictionary<string, string[]> Validate(EventRequest request) =>
         EventRequestValidator.Validate(request);
@@ -76,9 +76,15 @@ public class EventRequestValidatorTests
     public void Unknown_type_is_rejected(string? type) =>
         Assert.Contains("type", Validate(Event(type!)).Keys);
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void Tracking_id_is_required(string? trackingId) =>
+        Assert.Contains("trackingId", Validate(Event(trackingId: trackingId)).Keys);
+
     [Fact]
-    public void Site_id_is_required() =>
-        Assert.Contains("siteId", Validate(Event(siteId: 0)).Keys);
+    public void Tracking_id_is_at_most_64_characters() =>
+        Assert.Contains("trackingId", Validate(Event(trackingId: new string('a', 65))).Keys);
 
     [Theory]
     [InlineData("javascript:alert(1)")]
@@ -129,8 +135,8 @@ public class EventRequestValidatorTests
     [Fact]
     public void Multiple_problems_are_all_reported()
     {
-        var errors = Validate(Event("custom", "scroll", url: "nope", siteId: 0));
+        var errors = Validate(Event("custom", "scroll", url: "nope", trackingId: null));
 
-        Assert.Equal(["name", "siteId", "url"], errors.Keys.Order());
+        Assert.Equal(["name", "trackingId", "url"], errors.Keys.Order());
     }
 }

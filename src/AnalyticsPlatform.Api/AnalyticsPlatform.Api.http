@@ -1,7 +1,13 @@
 # Run the API (F5), then click "Send request" above any request below.
 # Site 1 = cookie-less hash mode, site 2 = persistent mode (see scripts/dev_seed.sql).
+#
+# Tracking IDs are random per database. These are one developer's values --
+# replace them with yours (the last lines scripts/dev_seed.sql prints).
+# Event URLs must be on the site's domain (localhost / persistent.localhost).
 
 @api = http://localhost:5115
+@site1 = ap_0f821f0c93644515
+@site2 = ap_d223a7983fbe4f0d
 
 ### Health check
 GET {{api}}/health
@@ -11,7 +17,7 @@ POST {{api}}/api/events
 Content-Type: application/json
 
 {
-  "siteId": 1,
+  "trackingId": "{{site1}}",
   "type": "pageview",
   "url": "https://localhost/pricing",
   "referrer": "https://google.com/",
@@ -24,7 +30,7 @@ POST {{api}}/api/events
 Content-Type: application/json
 
 {
-  "siteId": 1,
+  "trackingId": "{{site1}}",
   "type": "standard",
   "name": "scroll",
   "url": "https://localhost/pricing",
@@ -36,7 +42,7 @@ POST {{api}}/api/events
 Content-Type: application/json
 
 {
-  "siteId": 1,
+  "trackingId": "{{site1}}",
   "type": "custom",
   "name": "signup_click",
   "url": "https://localhost/pricing",
@@ -48,7 +54,7 @@ POST {{api}}/api/events
 Content-Type: application/json
 
 {
-  "siteId": 2,
+  "trackingId": "{{site2}}",
   "type": "pageview",
   "url": "https://persistent.localhost/",
   "visitorId": "7c1e2f40-8a5b-4c3d-9e1f-0a2b3c4d5e6f"
@@ -59,7 +65,7 @@ POST {{api}}/api/events
 Content-Type: application/json
 
 {
-  "siteId": 1,
+  "trackingId": "{{site1}}",
   "type": "custom",
   "name": "scroll",
   "url": "https://localhost/"
@@ -83,3 +89,13 @@ GET {{api}}/api/sites/{{demoSite}}/stats/top-pages?limit=10
 
 ### Top referrers (counted per session; "domain": null = direct)
 GET {{api}}/api/sites/{{demoSite}}/stats/top-referrers?limit=10
+
+### Should fail (400): page on a domain that isn't the site's
+POST {{api}}/api/events
+Content-Type: application/json
+
+{
+  "trackingId": "{{site1}}",
+  "type": "pageview",
+  "url": "https://someone-elses-site.example/"
+}

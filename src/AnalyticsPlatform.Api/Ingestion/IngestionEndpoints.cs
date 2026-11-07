@@ -71,12 +71,12 @@ public static class IngestionEndpoints
             return TypedResults.ValidationProblem(errors);
         }
 
-        var site = await siteConfigStore.GetAsync(request.SiteId, cancellationToken);
+        var site = await siteConfigStore.GetByTrackingIdAsync(request.TrackingId!, cancellationToken);
         if (site is null)
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {
-                ["siteId"] = ["Unknown site."],
+                ["trackingId"] = ["Unknown site."],
             });
         }
 
@@ -92,6 +92,14 @@ public static class IngestionEndpoints
         var sessionId = sessionTracker.GetSessionId(site.Id, visitor.VisitorId);
 
         EventRequestValidator.IsHttpUrl(request.Url, out var url);
+
+        if (!SiteDomain.Allows(site.Domain, url.Host))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["url"] = [$"The page's hostname doesn't match the site's domain ({site.Domain})."],
+            });
+        }
 
         var row = new EventRow(
             SiteId: site.Id,

@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace AnalyticsPlatform.Api.Sites;
 
-// What tracker.js receives from GET /api/sites/{siteId}/config, e.g.
+// What tracker.js receives from GET /api/tracking/{trackingId}/config, e.g.
 //   { "visitorIdMode": "hash", "standardEvents": ["scroll", "outbound_click"] }
 public sealed record SiteConfigResponse(string VisitorIdMode, IReadOnlyList<string> StandardEvents);
 
@@ -10,19 +10,19 @@ public static class SiteEndpoints
 {
     public static IEndpointRouteBuilder MapSiteEndpoints(this IEndpointRouteBuilder app)
     {
-        // `{siteId}` in the route becomes the `siteId` parameter below.
-        // `:int` would reject non-numbers; uint parsing does the same for us.
-        app.MapGet("/api/sites/{siteId}/config", GetConfigAsync);
+        // `{trackingId}` in the route becomes the `trackingId` parameter below.
+        // Keyed by the public tracking ID, since that's all the snippet knows.
+        app.MapGet("/api/tracking/{trackingId}/config", GetConfigAsync);
         return app;
     }
 
     private static async Task<Results<Ok<SiteConfigResponse>, NotFound>> GetConfigAsync(
-        uint siteId,
+        string trackingId,
         HttpContext httpContext,
         SiteConfigStore siteConfigStore,
         CancellationToken cancellationToken)
     {
-        var site = await siteConfigStore.GetAsync(siteId, cancellationToken);
+        var site = await siteConfigStore.GetByTrackingIdAsync(trackingId, cancellationToken);
         if (site is null)
         {
             return TypedResults.NotFound();

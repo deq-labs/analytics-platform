@@ -121,6 +121,29 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   / a not-yet-activated key — new keys can take ~5 min). With the file present,
   the real-DB tests run instead of skipping.
 
+### Phase 7 — tracking IDs + domain check (step 1, done 2026-11-07)
+- **Decision (2026-11-07):** the developer wanted tracking keys like GA / Rybbit.
+  Implemented as a **public tracking ID** per site (`sites.tracking_id`,
+  `ap_` + 16 hex, 64 random bits, Postgres default via `gen_random_uuid()`;
+  `postgres/init/003_tracking_ids.sql`). It identifies the site in the
+  snippet; it is NOT a secret (it's in page source) — same as GA's measurement
+  ID. Replaces the enumerable numeric id in the snippet; numeric id stays internal.
+- **Domain check** (`Ingestion/SiteDomain.cs`): event `url` host must be the
+  site's domain, its `www.` form, or a subdomain (dot-boundary, case-insensitive)
+  → else 400 on `url`. This is what stops snippet copying; not bulletproof
+  (scripts can lie), standard trade-off.
+- `POST /api/events` takes `trackingId` (numeric `siteId` no longer accepted);
+  tracker config moved to `GET /api/tracking/{trackingId}/config`;
+  `/api/sites` now returns `trackingId` (for the snippet in step 3).
+  `SiteConfigStore.GetByTrackingIdAsync` (cached 1 min like by-id).
+- Dev: `/demo` injects sites from Postgres and picks the one whose domain is
+  the page's host — open `http://persistent.localhost:5115/demo` to test site 2
+  (Chromium resolves `*.localhost`). Don't bind Kestrel to `*.localhost` names
+  as well as `localhost` on the same port — non-localhost names bind all
+  interfaces and the two clash ("address already in use").
+- Noticed: DeviceDetector reports "Headless Chrome" as a normal browser, not a
+  bot. Consider flagging it (backlog).
+
 ### Breakdowns (Phase 6, done)
 - `GET /api/sites/{id}/stats/breakdown?dimension=browser|os|device|country`
   (+ from/to/limit). `dimension` is required and mapped through the
@@ -156,7 +179,7 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   (e.g. a disk buffer or Kafka/Redpanda) is a later decision, not v1.
 
 ### Ingestion API (Phase 2, done)
-- `POST /api/events` — JSON `EventRequest` (`siteId`, `type`, `name`, `url`,
+- `POST /api/events` — JSON `EventRequest` (`trackingId`, `type`, `name`, `url`,
   `referrer`, `visitorId`, `screenWidth`, `screenHeight`, `properties`).
   Validates, resolves the site (cached 1 min), computes visitor/session/ip_hash,
   **queues** the row and returns **202 Accepted** (see "Batched ingestion"
@@ -165,12 +188,12 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   Body is read manually (not `[FromBody]`) so it accepts `Content-Type:
   text/plain` — the tracker sends text/plain so cross-origin posts are CORS
   "simple requests" with no preflight. Body capped at 16 KB (413).
-- `GET /api/sites/{id}/config` → `{ visitorIdMode, standardEvents[] }` (enabled
+- `GET /api/tracking/{trackingId}/config` → `{ visitorIdMode, standardEvents[] }` (enabled
   ones only), `Cache-Control: max-age=60`, 404 for unknown sites.
 - CORS policy `Tracker` (any origin, GET/POST, no credentials) applies only to
   the tracker route group, not `/health` or future dashboard endpoints.
 - **`wwwroot/tracker.js`** — dependency-free ES5-ish snippet served by the API:
-  `<script defer src=".../tracker.js" data-site-id="1">`. Pageview on load +
+  `<script defer src="./tracker.js" data-tracking-id="ap_…">`. Pageview on load +
   SPA `pushState`/`popstate` (hash-only changes ignored), `fetch` with
   `keepalive` + text/plain, queues events until config loads,
   `analyticsPlatform.track/consent/revokeConsent`, optional
@@ -288,16 +311,15 @@ whether to proceed or defer it, rather than silently building it.
 6. **Enrichment at ingestion** — ✅ done 2026-11-07: user-agent parsing + bot
    flag, UTM tags, IP geolocation (GeoLite2), breakdown endpoint + dashboard
    cards. See "Enrichment" and "Breakdowns" under Current state.
-7. **Auth, multi-site, API keys** — Postgres-backed users, site registration,
-   per-site API keys for the tracking snippet. The `sites` and
-   `site_tracked_events` tables themselves already exist (pulled forward, see
-   "Standard (auto-tracked) events" above) — this phase adds `users`/`api_keys`
-   and real auth around them, not the tables from scratch.
+7. **Auth, multi-site, API keys** — 🟡 in progress (see "Phase 7" under Current
+   state). Steps: ✅ 1 public tracking IDs + domain check · ⏳ 2 users + login +
+   locking the dashboard API · ⏳ 3 site management in the dashboard · ⏳ 4 secret
+   API keys for server-to-server stats reads.
 8. **Rollups, retention, remaining backlog** — hourly/daily rollup tables, real
    retention policy (current TTL is a placeholder), then whatever's next from the
    backlog. Also the point to evaluate whether the Python service earns its place.
 
-We are currently between **Phase 6 (done 2026-11-07) and Phase 7 (next)**.
+We are currently **in Phase 7** (step 1 of 4 done).
 The v1 core loop (snippet → C# ingestion → ClickHouse → dashboard) works end to end.
 
 ## Current state

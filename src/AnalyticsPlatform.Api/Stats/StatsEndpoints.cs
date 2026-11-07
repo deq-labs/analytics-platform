@@ -31,13 +31,13 @@ public static class StatsEndpoints
     private static async Task<Ok<List<SiteSummary>>> ListSitesAsync(
         NpgsqlDataSource dataSource, CancellationToken cancellationToken)
     {
-        await using var command = dataSource.CreateCommand("SELECT id, name, domain FROM sites ORDER BY name");
+        await using var command = dataSource.CreateCommand("SELECT id, name, domain, tracking_id FROM sites ORDER BY name");
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         var sites = new List<SiteSummary>();
         while (await reader.ReadAsync(cancellationToken))
         {
-            sites.Add(new SiteSummary((uint)reader.GetInt32(0), reader.GetString(1), reader.GetString(2)));
+            sites.Add(new SiteSummary((uint)reader.GetInt32(0), reader.GetString(1), reader.GetString(2), reader.GetString(3)));
         }
 
         return TypedResults.Ok(sites);

@@ -13,8 +13,8 @@
 </head>
 <body>
   <h1>Tracker demo</h1>
-  <p>Site <b id="site"></b> &middot; <a href="?site=1">use site 1 (hash)</a> &middot;
-     <a href="?site=2">use site 2 (persistent)</a></p>
+  <p>Tracking: <b id="site"></b></p>
+  <p>Open this page on another site's domain: <span id="site-links"></span></p>
 
   <h2>Try it</h2>
   <p>
@@ -59,13 +59,27 @@
       return realFetch(url, opts);
     };
 
-    const site = new URLSearchParams(location.search).get("site") || "1";
-    document.getElementById("site").textContent = site;
+    // Filled in by the API's /demo route (Development only) from Postgres.
+    const sites = /*__SITES__*/[];
+
+    // Use the site whose domain is the host this page was opened on, so the
+    // domain check passes for real. Browsers resolve any *.localhost name to
+    // this machine, e.g. http://persistent.localhost:5115/demo.
+    const site = sites.find((x) => x.domain === location.hostname);
+    document.getElementById("site").textContent = site
+      ? `${site.name} (${site.trackingId})`
+      : `nothing (no site has the domain "${location.hostname}")`;
+    for (const x of sites) {
+      const a = document.createElement("a");
+      a.href = `${location.protocol}//${x.domain}:${location.port}/demo`;
+      a.textContent = x.domain;
+      document.getElementById("site-links").append(a, " ");
+    }
 
     // Load the tracker the same way a real site would.
     const s = document.createElement("script");
     s.src = "/tracker.js";
-    s.dataset.siteId = site;
+    s.dataset.trackingId = site ? site.trackingId : "";
     s.setAttribute("data-wait-for-consent", "");
     document.head.appendChild(s);
 
@@ -75,7 +89,7 @@
 
     let page = 1;
     document.getElementById("nav").onclick = () =>
-      history.pushState({}, "", `?site=${site}&page=${++page}`);
+      history.pushState({}, "", `?page=${++page}`);
     document.getElementById("custom").onclick = () =>
       analyticsPlatform.track("demo_button", { color: "blue", count: 3 });
     document.getElementById("consent").onclick = () => { analyticsPlatform.consent(); showVid(); };

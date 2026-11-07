@@ -47,7 +47,7 @@ public class GeoTests(ApiFixture api)
         await using (factory)
         {
             var response = await ApiFixture.PostEventAsync(factory.CreateClient(),
-                new { siteId = site, type = "pageview", url = "https://shop.test/" });
+                new { trackingId = site.TrackingId, type = "pageview", url = site.Url("/") });
             Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         } // disposing flushes the queue
 
@@ -86,7 +86,7 @@ public class GeoTests(ApiFixture api)
         // The shared test API has no GeoLite2 database configured.
         var site = await api.CreateSiteAsync();
 
-        await api.PostEventAsync(new { siteId = site, type = "pageview", url = "https://shop.test/" });
+        await api.PostEventAsync(new { trackingId = site.TrackingId, type = "pageview", url = site.Url("/") });
 
         Assert.Equal(GeoLocation.Unknown, Assert.Single(await api.WaitForEventsAsync(site, 1)).Geo);
     }

@@ -23,8 +23,8 @@ public class EnrichmentTests(ApiFixture api)
     {
         var site = await api.CreateSiteAsync();
 
-        await api.PostEventAsync(new { siteId = site, type = "pageview", url = "https://shop.test/desktop" }, userAgent: ChromeWindows);
-        await api.PostEventAsync(new { siteId = site, type = "pageview", url = "https://shop.test/phone" }, userAgent: SafariIphone);
+        await api.PostEventAsync(new { trackingId = site.TrackingId, type = "pageview", url = site.Url("/desktop") }, userAgent: ChromeWindows);
+        await api.PostEventAsync(new { trackingId = site.TrackingId, type = "pageview", url = site.Url("/phone") }, userAgent: SafariIphone);
 
         var events = await api.WaitForEventsAsync(site, 2);
         var desktop = Assert.Single(events, e => e.Path == "/desktop");
@@ -42,9 +42,9 @@ public class EnrichmentTests(ApiFixture api)
 
         await api.PostEventAsync(new
         {
-            siteId = site,
+            trackingId = site.TrackingId,
             type = "pageview",
-            url = "https://shop.test/sale?utm_source=newsletter&utm_medium=email&utm_campaign=black%20friday&utm_term=shoes&utm_content=hero",
+            url = site.Url("/sale?utm_source=newsletter&utm_medium=email&utm_campaign=black%20friday&utm_term=shoes&utm_content=hero"),
         }, userAgent: ChromeWindows);
 
         var stored = Assert.Single(await api.WaitForEventsAsync(site, 1));
@@ -56,7 +56,7 @@ public class EnrichmentTests(ApiFixture api)
     {
         var site = await api.CreateSiteAsync();
 
-        var response = await api.PostEventAsync(new { siteId = site, type = "pageview", url = "https://shop.test/" }, userAgent: Googlebot);
+        var response = await api.PostEventAsync(new { trackingId = site.TrackingId, type = "pageview", url = site.Url("/") }, userAgent: Googlebot);
 
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode); // don't tell bots anything
         Assert.True(Assert.Single(await api.WaitForEventsAsync(site, 1)).IsBot);

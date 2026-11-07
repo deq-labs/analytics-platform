@@ -13,9 +13,9 @@ public class IngestionTests(ApiFixture api)
 
         var response = await api.PostEventAsync(new
         {
-            siteId = site,
+            trackingId = site.TrackingId,
             type = "pageview",
-            url = "https://shop.test/pricing?plan=pro#top",
+            url = site.Url("/pricing?plan=pro#top"),
             referrer = "https://www.Google.com/search?q=analytics",
             screenWidth = 1920,
             screenHeight = 1080,
@@ -26,7 +26,7 @@ public class IngestionTests(ApiFixture api)
         Assert.Equal("pageview", stored.EventType);
         Assert.Equal("", stored.EventName);
         Assert.Equal("/pricing", stored.Path);
-        Assert.Equal("shop.test", stored.Hostname);
+        Assert.Equal(site.Domain, stored.Hostname);
         Assert.Equal("https://www.Google.com/search?q=analytics", stored.Referrer);
         Assert.Equal("google.com", stored.ReferrerDomain);
         Assert.Equal("Chrome/140", stored.UserAgent);
@@ -43,7 +43,7 @@ public class IngestionTests(ApiFixture api)
         var site = await api.CreateSiteAsync();
 
         var response = await api.PostEventAsync(
-            new { siteId = site, type = "pageview", url = "https://shop.test/" }, contentType: "text/plain");
+            new { trackingId = site.TrackingId, type = "pageview", url = site.Url("/") }, contentType: "text/plain");
 
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         Assert.Single(await api.WaitForEventsAsync(site, 1));
@@ -54,8 +54,8 @@ public class IngestionTests(ApiFixture api)
     {
         var site = await api.CreateSiteAsync();
 
-        await api.PostEventAsync(new { siteId = site, type = "standard", name = "scroll", url = "https://shop.test/a", properties = new { depth = "90" } });
-        await api.PostEventAsync(new { siteId = site, type = "custom", name = "signup", url = "https://shop.test/a", properties = new { plan = "pro" } });
+        await api.PostEventAsync(new { trackingId = site.TrackingId, type = "standard", name = "scroll", url = site.Url("/a"), properties = new { depth = "90" } });
+        await api.PostEventAsync(new { trackingId = site.TrackingId, type = "custom", name = "signup", url = site.Url("/a"), properties = new { plan = "pro" } });
 
         var events = await api.WaitForEventsAsync(site, 2);
         var scroll = Assert.Single(events, e => e.EventName == "scroll");
@@ -71,9 +71,9 @@ public class IngestionTests(ApiFixture api)
     {
         var site = await api.CreateSiteAsync();
 
-        await api.PostEventAsync(new { siteId = site, type = "pageview", url = "https://shop.test/a" }, userAgent: "Chrome/140");
-        await api.PostEventAsync(new { siteId = site, type = "pageview", url = "https://shop.test/b" }, userAgent: "Chrome/140");
-        await api.PostEventAsync(new { siteId = site, type = "pageview", url = "https://shop.test/a" }, userAgent: "Firefox/140");
+        await api.PostEventAsync(new { trackingId = site.TrackingId, type = "pageview", url = site.Url("/a") }, userAgent: "Chrome/140");
+        await api.PostEventAsync(new { trackingId = site.TrackingId, type = "pageview", url = site.Url("/b") }, userAgent: "Chrome/140");
+        await api.PostEventAsync(new { trackingId = site.TrackingId, type = "pageview", url = site.Url("/a") }, userAgent: "Firefox/140");
 
         var events = await api.WaitForEventsAsync(site, 3);
         var chrome = events.Where(e => e.UserAgent == "Chrome/140").ToList();
@@ -92,8 +92,8 @@ public class IngestionTests(ApiFixture api)
         var site = await api.CreateSiteAsync("persistent");
         const string browserId = "7c1e2f40-8a5b-4c3d-9e1f-0a2b3c4d5e6f";
 
-        await api.PostEventAsync(new { siteId = site, type = "pageview", url = "https://shop.test/a", visitorId = browserId });
-        await api.PostEventAsync(new { siteId = site, type = "pageview", url = "https://shop.test/b", visitorId = "garbage" });
+        await api.PostEventAsync(new { trackingId = site.TrackingId, type = "pageview", url = site.Url("/a"), visitorId = browserId });
+        await api.PostEventAsync(new { trackingId = site.TrackingId, type = "pageview", url = site.Url("/b"), visitorId = "garbage" });
 
         var events = await api.WaitForEventsAsync(site, 2);
         Assert.Equal($"p:{browserId}", Assert.Single(events, e => e.Path == "/a").VisitorId);
@@ -105,7 +105,7 @@ public class IngestionTests(ApiFixture api)
     {
         var site = await api.CreateSiteAsync("hash");
 
-        await api.PostEventAsync(new { siteId = site, type = "pageview", url = "https://shop.test/", visitorId = "7c1e2f40-8a5b-4c3d-9e1f-0a2b3c4d5e6f" });
+        await api.PostEventAsync(new { trackingId = site.TrackingId, type = "pageview", url = site.Url("/"), visitorId = "7c1e2f40-8a5b-4c3d-9e1f-0a2b3c4d5e6f" });
 
         Assert.StartsWith("h:", Assert.Single(await api.WaitForEventsAsync(site, 1)).VisitorId);
     }
@@ -115,7 +115,7 @@ public class IngestionTests(ApiFixture api)
     {
         var site = await api.CreateSiteAsync();
 
-        var response = await api.PostEventAsync(new { siteId = site, type = "custom", name = "scroll", url = "https://shop.test/" });
+        var response = await api.PostEventAsync(new { trackingId = site.TrackingId, type = "custom", name = "scroll", url = site.Url("/") });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains("reserved", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
@@ -126,7 +126,7 @@ public class IngestionTests(ApiFixture api)
     [Fact]
     public async Task Unknown_site_is_rejected()
     {
-        var response = await api.PostEventAsync(new { siteId = 999_999, type = "pageview", url = "https://shop.test/" });
+        var response = await api.PostEventAsync(new { trackingId = "ap_0000000000000000", type = "pageview", url = "https://shop.test/" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains("Unknown site", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
@@ -148,7 +148,7 @@ public class IngestionTests(ApiFixture api)
     public async Task Body_over_16_KB_is_a_413()
     {
         var site = await api.CreateSiteAsync();
-        var huge = $$"""{"siteId":{{site}},"type":"pageview","url":"https://shop.test/","x":"{{new string('a', 20_000)}}"}""";
+        var huge = $$"""{"trackingId":"{{site.TrackingId}}","type":"pageview","url":"{{site.Url()}}","x":"{{new string('a', 20_000)}}"}""";
 
         var response = await api.PostRawEventAsync(huge);
 
@@ -168,7 +168,7 @@ public class IngestionTests(ApiFixture api)
         // The API caches the salt per day in memory, so an old row is only
         // cleaned up when the API loads a new day's salt. Check the invariant
         // that matters instead: today's salt exists and is 32 random bytes.
-        await api.PostEventAsync(new { siteId = site, type = "pageview", url = "https://shop.test/" });
+        await api.PostEventAsync(new { trackingId = site.TrackingId, type = "pageview", url = site.Url("/") });
         await api.WaitForEventsAsync(site, 1);
 
         await using var today = api.Postgres.CreateCommand(

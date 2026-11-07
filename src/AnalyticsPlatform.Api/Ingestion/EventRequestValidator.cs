@@ -13,14 +13,15 @@ public static class EventRequestValidator
     private const int MaxProperties = 25;
     private const int MaxPropertyKeyLength = 64;
     private const int MaxPropertyValueLength = 512;
+    private const int MaxTrackingIdLength = 64;
 
     public static Dictionary<string, string[]> Validate(EventRequest request)
     {
         var errors = new Dictionary<string, string[]>();
 
-        if (request.SiteId == 0)
+        if (request.TrackingId is not { Length: > 0 and <= MaxTrackingIdLength })
         {
-            errors["siteId"] = ["Required."];
+            errors["trackingId"] = [$"Required, at most {MaxTrackingIdLength} characters."];
         }
 
         if (!IsHttpUrl(request.Url, out _))

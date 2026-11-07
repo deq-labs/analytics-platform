@@ -2,7 +2,10 @@
  * Analytics Platform tracker -- AGPL-3.0
  *
  * Usage (on the tracked site):
- *   <script defer src="https://YOUR-API/tracker.js" data-site-id="1"></script>
+ *   <script defer src="https://YOUR-API/tracker.js" data-tracking-id="ap_3f9c0a7b12de4e65"></script>
+ *
+ * The tracking ID is public (it's in your page source, like GA's measurement
+ * ID). Events are only accepted from pages on the site's registered domain.
  *
  * Optional attributes:
  *   data-wait-for-consent   Persistent-mode sites only: don't store a visitor ID
@@ -30,9 +33,9 @@
   var script = document.currentScript;
   if (!script) return;
 
-  var siteId = Number(script.getAttribute("data-site-id"));
-  if (!siteId) {
-    console.warn("[analytics] tracker.js needs a data-site-id attribute");
+  var trackingId = script.getAttribute("data-tracking-id");
+  if (!trackingId) {
+    console.warn("[analytics] tracker.js needs a data-tracking-id attribute");
     return;
   }
 
@@ -96,7 +99,7 @@
 
   function enqueue(type, name, properties, referrer) {
     var payload = {
-      siteId: siteId,
+      trackingId: trackingId,
       type: type,
       name: name || undefined,
       url: location.href,
@@ -303,7 +306,7 @@
 
   pageview();
 
-  fetch(api + "/api/sites/" + siteId + "/config", { credentials: "omit" })
+  fetch(api + "/api/tracking/" + encodeURIComponent(trackingId) + "/config", { credentials: "omit" })
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (c) { if (c) config = c; })
     .catch(function () { /* keep defaults */ })

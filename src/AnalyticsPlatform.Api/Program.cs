@@ -105,8 +105,24 @@ app.MapStatsEndpoints();
 // A test page that loads tracker.js, only when running locally.
 if (app.Environment.IsDevelopment())
 {
-    app.MapGet("/demo", () => Results.File(
-        Path.Combine(app.Environment.ContentRootPath, "DevPages", "demo.html"), "text/html"));
+    // Injects the sites (with tracking IDs) so the page can pick the one whose
+    // domain matches the host it was opened on.
+    app.MapGet("/demo", async (NpgsqlDataSource dataSource) =>
+    {
+        await using var command = dataSource.CreateCommand(
+            "SELECT name, domain, tracking_id FROM sites ORDER BY id");
+        await using var reader = await command.ExecuteReaderAsync();
+        var sites = new List<object>();
+        while (await reader.ReadAsync())
+        {
+            sites.Add(new { name = reader.GetString(0), domain = reader.GetString(1), trackingId = reader.GetString(2) });
+        }
+
+        var html = await File.ReadAllTextAsync(
+            Path.Combine(app.Environment.ContentRootPath, "DevPages", "demo.html"));
+        return Results.Content(
+            html.Replace("/*__SITES__*/[]", System.Text.Json.JsonSerializer.Serialize(sites)), "text/html");
+    });
 }
 
 app.Run();

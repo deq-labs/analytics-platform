@@ -3,7 +3,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 // ---- Types mirroring the C# records in src/AnalyticsPlatform.Api/Stats ----
 // (ASP.NET Core serializes PascalCase properties as camelCase JSON.)
 
-export type Site = { id: number; name: string; domain: string }
+export type Site = { id: number; name: string; domain: string; trackingId: string }
 
 export type Interval = 'hour' | 'day'
 

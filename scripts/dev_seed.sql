@@ -6,7 +6,8 @@
 --   localhost             visitor_id_mode = 'hash'       (cookie-less)
 --   persistent.localhost  visitor_id_mode = 'persistent' (browser-stored ID)
 --   demo.localhost        fake traffic from scripts/dev_events.sql
--- Prints their ids at the end -- use those as "siteId" when sending events.
+-- Prints their ids and tracking IDs at the end: the tracking ID goes in the
+-- snippet (data-tracking-id) and in "trackingId" when sending events by hand.
 
 INSERT INTO sites (name, domain, visitor_id_mode) VALUES
     ('Local dev (hash)',       'localhost',            'hash'),
@@ -26,4 +27,4 @@ CROSS JOIN (VALUES
 WHERE s.domain IN ('localhost', 'persistent.localhost', 'demo.localhost')
 ON CONFLICT DO NOTHING;
 
-SELECT id, name, domain, visitor_id_mode FROM sites ORDER BY id;
+SELECT id, name, domain, visitor_id_mode, tracking_id FROM sites ORDER BY id;

@@ -117,14 +117,21 @@ public sealed class ApiFixture : IAsyncLifetime
     // ---- Sites ----------------------------------------------------------------
 
     // Creates a fresh site with a unique domain; all standard events enabled
-    // except the ones listed.
-    public async Task<uint> CreateSiteAsync(string visitorIdMode = "hash", params string[] disabledStandardEvents)
+    // except the ones listed. Postgres generates the tracking ID.
+    public async Task<TestSite> CreateSiteAsync(string visitorIdMode = "hash", params string[] disabledStandardEvents)
     {
+        var domain = $"{Guid.NewGuid():N}.test";
         await using var insert = Postgres.CreateCommand(
-            "INSERT INTO sites (name, domain, visitor_id_mode) VALUES ($1, $1, $2) RETURNING id");
-        insert.Parameters.AddWithValue($"{Guid.NewGuid():N}.test");
+            "INSERT INTO sites (name, domain, visitor_id_mode) VALUES ($1, $1, $2) RETURNING id, tracking_id");
+        insert.Parameters.AddWithValue(domain);
         insert.Parameters.AddWithValue(visitorIdMode);
-        var siteId = (int)(await insert.ExecuteScalarAsync())!;
+        int siteId;
+        string trackingId;
+        await using (var reader = await insert.ExecuteReaderAsync())
+        {
+            await reader.ReadAsync();
+            (siteId, trackingId) = (reader.GetInt32(0), reader.GetString(1));
+        }
 
         await using var events = Postgres.CreateCommand("""
             INSERT INTO site_tracked_events (site_id, event_key, enabled)
@@ -135,7 +142,7 @@ public sealed class ApiFixture : IAsyncLifetime
         events.Parameters.AddWithValue(disabledStandardEvents);
         await events.ExecuteNonQueryAsync();
 
-        return (uint)siteId;
+        return new TestSite((uint)siteId, trackingId, domain);
     }
 
     // ---- Sending events through the API ---------------------------------------------
@@ -285,4 +292,17 @@ public static class RepoPaths
             ? root
             : throw new InvalidOperationException($"Repository root not found at '{root}'.");
     }
+}
+
+// A site created for one test. Converts to its numeric ID wherever a uint is
+// expected (and prints as it in URLs like $"/api/sites/{site}/stats"), so tests
+// that only care about the internal ID read naturally.
+public sealed record TestSite(uint Id, string TrackingId, string Domain)
+{
+    // A page URL on this site's own domain (events from other domains are rejected).
+    public string Url(string pathAndQuery = "/") => $"https://{Domain}{pathAndQuery}";
+
+    public static implicit operator uint(TestSite site) => site.Id;
+
+    public override string ToString() => Id.ToString();
 }
