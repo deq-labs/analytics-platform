@@ -121,6 +121,23 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   / a not-yet-activated key — new keys can take ~5 min). With the file present,
   the real-DB tests run instead of skipping.
 
+### Phase 7 — secret API keys (step 4, done 2026-11-07) — `Auth/ApiKeys.cs`
+- `api_keys` table (`postgres/init/005_api_keys.sql`): `apk_` + 32 random
+  bytes base64url; stored as SHA-256 (fast hash is fine for 256-bit random
+  secrets) plus a 12-char `prefix` for display; `last_used_at`; cascade on user.
+- `GET|POST /api/keys`, `DELETE /api/keys/{id}` (own keys only, 404 otherwise),
+  all on the Session policy — a key can't create keys. The key is returned once.
+- Auth: default scheme is a **policy scheme** `CookieOrApiKey` that forwards
+  to `ApiKeyAuthenticationHandler` when `Authorization: Bearer apk_…` is
+  present, else to the cookie. Key principals carry only the user id +
+  `auth_method=api_key` — **never admin**, so an admin's key sees only sites
+  the admin owns.
+- Keys are **read-only**: `GET /api/sites` and `/stats/*` use the default
+  policy (either scheme); site management, `/api/keys`, `/api/auth/me` and
+  invites need the cookie (Session policy) → 401 with a key.
+- Dashboard: "API keys" card in Settings (create, shown-once key + curl
+  example, list by prefix with last-used, revoke with inline confirm).
+
 ### Phase 7 — site management + invites UI (step 3, done 2026-11-07) — `Sites/SiteStore.cs`, `Sites/SiteManagementEndpoints.cs`
 - `POST /api/sites` {name, domain, visitorIdMode?} (creator = owner, all 8
   standard events on, 409 if the domain is taken), `GET|PATCH|DELETE
@@ -364,15 +381,15 @@ whether to proceed or defer it, rather than silently building it.
 6. **Enrichment at ingestion** — ✅ done 2026-11-07: user-agent parsing + bot
    flag, UTM tags, IP geolocation (GeoLite2), breakdown endpoint + dashboard
    cards. See "Enrichment" and "Breakdowns" under Current state.
-7. **Auth, multi-site, API keys** — 🟡 in progress (see "Phase 7" under Current
+7. **Auth, multi-site, API keys** — ✅ done 2026-11-07 (see "Phase 7" under Current
    state). Steps: ✅ 1 public tracking IDs + domain check · ✅ 2 users + login +
    locking the dashboard API · ✅ 3 site management in the dashboard (incl. an
-   invite UI) · ⏳ 4 secret API keys for server-to-server stats reads.
+   invite UI) · ✅ 4 secret API keys for server-to-server stats reads.
 8. **Rollups, retention, remaining backlog** — hourly/daily rollup tables, real
    retention policy (current TTL is a placeholder), then whatever's next from the
    backlog. Also the point to evaluate whether the Python service earns its place.
 
-We are currently **in Phase 7** (steps 1–3 of 4 done).
+We are currently **in Phase 8**.
 The v1 core loop (snippet → C# ingestion → ClickHouse → dashboard) works end to end.
 
 ## Current state
@@ -443,9 +460,7 @@ being used).
   `postgres/init/002_visitor_id.sql`, see "Visitor identification". Init scripts
   only run on an empty volume, so new migration files must be idempotent and
   get applied by hand to existing DBs until migration tooling is chosen.
-- **`users` / `api_keys`** are still a Phase 7 decision — don't scaffold them
-  speculatively. Only `sites`/`site_tracked_events` were pulled forward, and only
-  because the tracking snippet needs them.
+- `users`, `invites` (004) and `api_keys` (005) — see the Phase 7 sections.
 
 ## Conventions
 

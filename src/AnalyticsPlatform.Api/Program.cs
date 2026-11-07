@@ -7,6 +7,7 @@ using AnalyticsPlatform.Api.Sites;
 using AnalyticsPlatform.Api.Stats;
 using AnalyticsPlatform.Api.Visitors;
 using ClickHouse.Driver;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
@@ -99,7 +100,16 @@ builder.Services.AddSingleton<IPasswordHasher<AppUser>, PasswordHasher<AppUser>>
 // request. HttpOnly: JavaScript can't read it (stops token theft via XSS).
 // SameSite=Strict: browsers never send it on requests started by other sites,
 // which is what defends cookie auth against cross-site request forgery (CSRF).
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+// Two ways to be signed in, picked per request by a "policy scheme": a
+// secret API key in `Authorization: Bearer apk_...` (servers, read-only; see
+// Auth/ApiKeys.cs), otherwise the dashboard's session cookie.
+const string CookieOrApiKey = "CookieOrApiKey";
+builder.Services.AddAuthentication(CookieOrApiKey)
+    .AddPolicyScheme(CookieOrApiKey, null, options => options.ForwardDefaultSelector = context =>
+        ApiKeyAuthenticationHandler.BearerKey(context.Request) is null
+            ? CookieAuthenticationDefaults.AuthenticationScheme
+            : ApiKeys.Scheme)
+    .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeys.Scheme, null)
     .AddCookie(options =>
     {
         options.Cookie.Name = "ap_session";
@@ -165,6 +175,7 @@ trackerApi.MapSiteEndpoints();
 app.MapAuthEndpoints();
 app.MapStatsEndpoints();
 app.MapSiteManagementEndpoints();
+app.MapApiKeyEndpoints();
 
 // A test page that loads tracker.js, only when running locally.
 if (app.Environment.IsDevelopment())

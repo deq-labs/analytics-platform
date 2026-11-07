@@ -36,7 +36,7 @@ public static class AuthEndpoints
         auth.MapPost("/register", RegisterAsync).RequireRateLimiting(RateLimitPolicy);
         auth.MapPost("/login", LoginAsync).RequireRateLimiting(RateLimitPolicy);
         auth.MapPost("/logout", LogoutAsync);
-        auth.MapGet("/me", GetMe).RequireAuthorization();
+        auth.MapGet("/me", GetMe).RequireAuthorization(SessionPolicy);
 
         app.MapPost("/api/admin/invites", CreateInviteAsync).RequireAuthorization(AdminPolicy);
         return app;

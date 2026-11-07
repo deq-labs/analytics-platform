@@ -15,6 +15,8 @@ import {
   type SiteDetails,
 } from '../sites'
 import { Card, QueryState } from './Card'
+import { ApiKeysCard } from './ApiKeysCard'
+import { CopyButton } from './CopyButton'
 
 // The "Settings" view: add sites, set each one up, and (admins) invite people.
 export function SitesPage({
@@ -32,6 +34,7 @@ export function SitesPage({
     <div className="settings">
       {siteId !== undefined && <SiteSettings key={siteId} siteId={siteId} onDeleted={() => onSelectSite(undefined)} />}
       <AddSite onCreated={onSelectSite} first={sites?.length === 0} />
+      <ApiKeysCard siteId={siteId} />
       {user.isAdmin && <Invites />}
     </div>
   )
@@ -283,18 +286,3 @@ function Invites() {
   )
 }
 
-function CopyButton({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false)
-  return (
-    <button
-      className="link-button"
-      onClick={async () => {
-        await navigator.clipboard.writeText(text)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 1500)
-      }}
-    >
-      {copied ? 'Copied' : label}
-    </button>
-  )
-}

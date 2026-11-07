@@ -605,3 +605,16 @@ button.danger:disabled {
     order: 3;
   }
 }
+
+.new-key {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--series-1);
+  border-radius: 8px;
+}
+
+.card > table + form,
+.card > .message + form,
+.card > .hint + form {
+  margin-top: 14px;
+}
