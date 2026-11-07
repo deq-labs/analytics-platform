@@ -446,3 +446,162 @@ button.primary:disabled {
   opacity: 0.6;
   cursor: default;
 }
+
+/* ---- settings view (sites, tracking code, invites) ----------------------------- */
+
+.app-header > nav {
+  margin-left: auto;
+}
+
+.settings {
+  display: grid;
+  gap: 16px;
+  max-width: 760px;
+}
+
+.form {
+  display: grid;
+  gap: 16px;
+}
+
+.form.inline {
+  grid-template-columns: 1fr 1fr auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.form.inline.two {
+  grid-template-columns: 1fr auto;
+}
+
+.form label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.form input:not([type='radio'], [type='checkbox']) {
+  font: inherit;
+  color: var(--text-primary);
+  background: var(--page);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  min-width: 0;
+}
+
+.form fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.form legend {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.form label.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.form label.choice input {
+  margin-top: 4px;
+}
+
+.checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px 16px;
+}
+
+.hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.hint.block {
+  display: block;
+}
+
+.card > .hint + *,
+.card > * + .hint,
+.card > pre + .row,
+.card > .row + .message {
+  margin-top: 10px;
+}
+
+code {
+  font: 13px/1.4 ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
+pre.code {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  background: var(--wash);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: 13px/1.5 ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.row.start {
+  justify-content: flex-start;
+}
+
+.row.tight {
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+button.danger {
+  font: inherit;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--critical);
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+button.danger:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.danger-card {
+  border-color: color-mix(in srgb, var(--critical) 40%, var(--border));
+}
+
+@media (max-width: 640px) {
+  .form.inline {
+    grid-template-columns: 1fr;
+  }
+  .app-header {
+    flex-wrap: wrap;
+  }
+  .app-header > nav {
+    margin-left: 0;
+    order: 3;
+  }
+}

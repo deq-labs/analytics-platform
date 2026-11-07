@@ -13,8 +13,10 @@ export default defineConfig({
     // forwards those to the C# API (the "http" launch profile in Visual Studio),
     // so the browser only ever talks to one origin and no CORS is needed.
     // Override with e.g. `API_URL=http://localhost:5199 npm run dev`.
+    // /tracker.js too, so the tracking code shown in Settings works in dev.
     proxy: {
       '/api': process.env.API_URL ?? 'http://localhost:5115',
+      '/tracker.js': process.env.API_URL ?? 'http://localhost:5115',
     },
   },
 })

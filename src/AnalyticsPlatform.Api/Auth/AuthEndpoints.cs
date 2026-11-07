@@ -24,6 +24,8 @@ public sealed record InviteResponse(string Token, DateTime ExpiresAt);
 public static class AuthEndpoints
 {
     public const string AdminPolicy = "Admin";
+    // Signed in through the dashboard (a session cookie), not with an API key.
+    public const string SessionPolicy = "Session";
     public const string RateLimitPolicy = "auth";
     private const string AdminClaim = "admin";
 

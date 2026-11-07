@@ -6,16 +6,20 @@ import { BreakdownCard } from './components/BreakdownCard'
 import { PageviewsChart } from './components/PageviewsChart'
 import { AuthScreen } from './components/AuthScreen'
 import { TopList } from './components/TopList'
+import { SitesPage } from './components/SitesPage'
 import { PRESETS, rangeFor, type PresetKey } from './format'
 
 // The selected site and range live in the URL (?site=5&range=30d), so a refresh
 // or a copied link shows the same view.
-function readUrl(): { site?: number; preset: PresetKey } {
+type View = 'stats' | 'settings'
+
+function readUrl(): { site?: number; preset: PresetKey; view: View } {
   const params = new URLSearchParams(location.search)
   const site = Number(params.get('site')) || undefined
   const range = params.get('range')
   const preset = PRESETS.some((p) => p.key === range) ? (range as PresetKey) : '7d'
-  return { site, preset }
+  const view: View = params.get('view') === 'settings' ? 'settings' : 'stats'
+  return { site, preset, view }
 }
 
 // Signed in -> dashboard. Not signed in -> setup / login / invite sign-up.
@@ -31,11 +35,13 @@ function Dashboard({ user }: { user: User }) {
   const initial = readUrl()
   const [siteId, setSiteId] = useState<number | undefined>(initial.site)
   const [preset, setPreset] = useState<PresetKey>(initial.preset)
+  const [view, setView] = useState<View>(initial.view)
 
   const sites = useSites()
 
   // Default to the first site once the list arrives.
-  const activeSiteId = siteId ?? sites.data?.[0]?.id
+  // (An id that isn't in the list -- e.g. a just-deleted site -- falls back too.)
+  const activeSiteId = sites.data?.some((s) => s.id === siteId) ? siteId : sites.data?.[0]?.id
   const activeSite = sites.data?.find((s) => s.id === activeSiteId)
 
   // useMemo: only recompute the range when the preset changes, not on every
@@ -44,9 +50,10 @@ function Dashboard({ user }: { user: User }) {
 
   useEffect(() => {
     const params = new URLSearchParams({ range: preset })
+    if (view === 'settings') params.set('view', view)
     if (activeSiteId !== undefined) params.set('site', String(activeSiteId))
     history.replaceState(null, '', `?${params}`)
-  }, [activeSiteId, preset])
+  }, [activeSiteId, preset, view])
 
   const pages = useTopPages(activeSiteId, range)
   const referrers = useTopReferrers(activeSiteId, range)
@@ -59,6 +66,10 @@ function Dashboard({ user }: { user: User }) {
           <h1>Analytics</h1>
           <p>{activeSite ? activeSite.domain : 'Self-hosted web analytics'} · all times UTC</p>
         </div>
+        <nav className="segmented" aria-label="View">
+          <button aria-pressed={view === 'stats'} onClick={() => setView('stats')}>Dashboard</button>
+          <button aria-pressed={view === 'settings'} onClick={() => setView('settings')}>Settings</button>
+        </nav>
         <div className="account">
           <span>{user.email}{user.isAdmin && <span className="muted"> · admin</span>}</span>
           <button className="link-button" onClick={() => logout.mutate()} disabled={logout.isPending}>
@@ -83,22 +94,23 @@ function Dashboard({ user }: { user: User }) {
             ))}
           </select>
         </label>
-        <div className="segmented" role="group" aria-label="Date range">
+        {view === 'stats' && (
+          <div className="segmented" role="group" aria-label="Date range">
           {PRESETS.map((p) => (
             <button key={p.key} aria-pressed={preset === p.key} onClick={() => setPreset(p.key)}>
               {p.label}
             </button>
           ))}
-        </div>
+          </div>
+        )}
       </div>
 
-      {sites.error || sites.data?.length === 0 ? (
+      {sites.error ? (
         <Card title="Sites">
           <QueryState error={sites.error} loading={false} />
-          {sites.data?.length === 0 && (
-            <p className="message">No sites yet. Run scripts/dev_seed.sql to create some.</p>
-          )}
         </Card>
+      ) : view === 'settings' || sites.data?.length === 0 ? (
+        <SitesPage user={user} sites={sites.data} siteId={activeSiteId} onSelectSite={setSiteId} />
       ) : (
         <div className="grid">
           <PageviewsChart siteId={activeSiteId} range={range} />

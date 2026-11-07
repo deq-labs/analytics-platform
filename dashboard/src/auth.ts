@@ -30,15 +30,18 @@ async function errorMessage(response: Response): Promise<string> {
   return `Something went wrong (${response.status}).`
 }
 
-async function postJson(path: string, body?: unknown): Promise<Response> {
+// Sends JSON with any method; throws an Error with a readable message on failure.
+export async function sendJson(method: string, path: string, body?: unknown): Promise<Response> {
   const response = await fetch(path, {
-    method: 'POST',
+    method,
     headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (!response.ok) throw new Error(await errorMessage(response))
   return response
 }
+
+const postJson = (path: string, body?: unknown) => sendJson('POST', path, body)
 
 // ---- Queries ----
 

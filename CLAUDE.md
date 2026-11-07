@@ -121,6 +121,27 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   / a not-yet-activated key — new keys can take ~5 min). With the file present,
   the real-DB tests run instead of skipping.
 
+### Phase 7 — site management + invites UI (step 3, done 2026-11-07) — `Sites/SiteStore.cs`, `Sites/SiteManagementEndpoints.cs`
+- `POST /api/sites` {name, domain, visitorIdMode?} (creator = owner, all 8
+  standard events on, 409 if the domain is taken), `GET|PATCH|DELETE
+  /api/sites/{id}`, `POST /api/sites/{id}/tracking-id` (new random ID; old one
+  dies at once). PATCH only changes fields sent. All need the **Session**
+  policy (cookie login — API keys can't manage sites) + the shared
+  `SiteAccess` endpoint filter (404 unless owner/admin).
+- Domain input is normalized by `SiteDomain.TryNormalizeForRegistration`
+  (accepts pasted URLs, strips scheme/port/path/`www.`, lowercases, unicode →
+  punycode, needs a dot unless `localhost`).
+- Every change calls `SiteConfigStore.Forget(id, trackingId)` so the tracker
+  sees it immediately instead of after the 1-minute cache.
+- Delete removes ClickHouse rows first (lightweight `DELETE FROM`, tables in
+  `ClickHouseTables.PerSite`), then the Postgres row (cascades).
+- Dashboard: header toggle Dashboard / **Settings** (`?view=settings`).
+  Settings = tracking code (copy, regenerate with inline confirm), name /
+  visitor-ID mode / standard-event toggles (PATCH of changed fields only —
+  `changedSettings()` in `src/sites.ts`), delete (type the domain to confirm),
+  add a site, and for admins an invite-link generator. No browser `confirm()`
+  dialogs. Vite also proxies `/tracker.js` so the shown snippet works in dev.
+
 ### Phase 7 — accounts + login (step 2, done 2026-11-07) — `src/AnalyticsPlatform.Api/Auth/`
 - **Decision:** self-hosting is a first-class option. `Auth:OpenRegistration`
   false (default) = invite-only after the first account; true = open sign-up (SaaS).
@@ -146,8 +167,7 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   the site or are admin. Tracking endpoints, `/health`, `/demo` stay anonymous.
 - Dashboard: `src/auth.ts` (screen choice + login/register/logout mutations
   that `resetQueries()`), `AuthScreen` (setup / login / `?invite=` sign-up),
-  header shows the user + Sign out. No invite UI yet (step 3) — create invites
-  with `POST /api/admin/invites` while signed in as admin.
+  header shows the user + Sign out. Invites are created in Settings (step 3).
 - Deploy notes: cookie encryption keys (ASP.NET Data Protection) are stored per
   machine user by default; containers need a persisted key ring. Behind HTTPS the
   cookie gets `Secure` automatically.
@@ -346,13 +366,13 @@ whether to proceed or defer it, rather than silently building it.
    cards. See "Enrichment" and "Breakdowns" under Current state.
 7. **Auth, multi-site, API keys** — 🟡 in progress (see "Phase 7" under Current
    state). Steps: ✅ 1 public tracking IDs + domain check · ✅ 2 users + login +
-   locking the dashboard API · ⏳ 3 site management in the dashboard (incl. an
+   locking the dashboard API · ✅ 3 site management in the dashboard (incl. an
    invite UI) · ⏳ 4 secret API keys for server-to-server stats reads.
 8. **Rollups, retention, remaining backlog** — hourly/daily rollup tables, real
    retention policy (current TTL is a placeholder), then whatever's next from the
    backlog. Also the point to evaluate whether the Python service earns its place.
 
-We are currently **in Phase 7** (steps 1–2 of 4 done).
+We are currently **in Phase 7** (steps 1–3 of 4 done).
 The v1 core loop (snippet → C# ingestion → ClickHouse → dashboard) works end to end.
 
 ## Current state

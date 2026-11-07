@@ -20,37 +20,16 @@ public static class StatsEndpoints
         // The dashboard's site picker: your own sites (an admin sees all).
         app.MapGet("/api/sites", ListSitesAsync).RequireAuthorization();
 
-        // Every stats endpoint needs a login AND access to the site in the URL.
-        // An *endpoint filter* runs before each handler in the group, so the
-        // check lives in one place instead of in every handler.
+        // Every stats endpoint needs a login AND access to the site in the URL
+        // (an endpoint filter, see Sites/SiteAccess.cs).
         var stats = app.MapGroup("/api/sites/{siteId}/stats")
             .RequireAuthorization()
-            .AddEndpointFilter(RequireSiteAccessAsync);
+            .RequireSiteAccess();
         stats.MapGet("/pageviews", GetPageviewsAsync);
         stats.MapGet("/top-pages", GetTopPagesAsync);
         stats.MapGet("/top-referrers", GetTopReferrersAsync);
         stats.MapGet("/breakdown", GetBreakdownAsync);
         return app;
-    }
-
-    // A site you don't own answers 404, not 403: it shouldn't even reveal that
-    // the site exists.
-    private static async ValueTask<object?> RequireSiteAccessAsync(
-        EndpointFilterInvocationContext context, EndpointFilterDelegate next)
-    {
-        var http = context.HttpContext;
-        if (!uint.TryParse(http.Request.RouteValues["siteId"]?.ToString(), out var siteId))
-        {
-            return TypedResults.NotFound();
-        }
-
-        var site = await http.RequestServices.GetRequiredService<SiteConfigStore>().GetAsync(siteId, http.RequestAborted);
-        if (site is null || !(http.User.IsAdmin() || site.OwnerUserId == http.User.UserId()))
-        {
-            return TypedResults.NotFound();
-        }
-
-        return await next(context);
     }
 
     private static async Task<Ok<List<SiteSummary>>> ListSitesAsync(

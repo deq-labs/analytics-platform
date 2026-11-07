@@ -66,6 +66,16 @@ public sealed class SiteConfigStore(NpgsqlDataSource dataSource, IMemoryCache ca
         await cache.GetOrCreateAsync(("tracking", trackingId), entry =>
             LoadAsync(entry, ByTrackingId, trackingId, cancellationToken));
 
+    // Drops a site's cached settings after it changes, under both of its keys.
+    public void Forget(uint siteId, string? trackingId)
+    {
+        cache.Remove(("site", siteId));
+        if (trackingId is not null)
+        {
+            cache.Remove(("tracking", trackingId));
+        }
+    }
+
     private async Task<SiteConfig?> LoadAsync(
         ICacheEntry entry, string sql, object key, CancellationToken cancellationToken)
     {

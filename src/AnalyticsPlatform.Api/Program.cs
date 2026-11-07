@@ -76,6 +76,7 @@ builder.Services.AddHostedService<EventBatchWriter>();
 
 // Dashboard queries.
 builder.Services.AddSingleton<StatsQueries>();
+builder.Services.AddSingleton<SiteStore>(); // create / change / delete sites (Phase 7 step 3)
 
 // CORS: browsers block a page on site A from reading responses from site B
 // (this API) unless B says it's allowed. The tracker runs on customers' sites,
@@ -120,7 +121,12 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         };
     });
 builder.Services.AddAuthorization(options =>
-    options.AddPolicy(AuthEndpoints.AdminPolicy, policy => policy.RequireAssertion(c => c.User.IsAdmin())));
+{
+    options.AddPolicy(AuthEndpoints.AdminPolicy, policy => policy.RequireAssertion(c => c.User.IsAdmin()));
+    options.AddPolicy(AuthEndpoints.SessionPolicy, policy => policy
+        .AddAuthenticationSchemes(CookieAuthenticationDefaults.AuthenticationScheme)
+        .RequireAuthenticatedUser());
+});
 
 // Login/register attempts per client IP per minute (Auth:AttemptsPerMinute).
 builder.Services.AddRateLimiter(options =>
@@ -158,6 +164,7 @@ trackerApi.MapSiteEndpoints();
 // CORS for any origin, and they require a signed-in user.
 app.MapAuthEndpoints();
 app.MapStatsEndpoints();
+app.MapSiteManagementEndpoints();
 
 // A test page that loads tracker.js, only when running locally.
 if (app.Environment.IsDevelopment())
