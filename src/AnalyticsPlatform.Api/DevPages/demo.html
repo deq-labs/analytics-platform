@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tracker demo</title>
+  <style>
+    body { font: 16px/1.5 system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; }
+    button { font: inherit; padding: .4rem .8rem; margin: .2rem .2rem .2rem 0; cursor: pointer; }
+    code { background: #8882; padding: 0 .3rem; border-radius: 4px; }
+    #log { background: #8881; padding: 1rem; border-radius: 6px; white-space: pre-wrap; font: 13px/1.4 monospace; }
+  </style>
+</head>
+<body>
+  <h1>Tracker demo</h1>
+  <p>Site <b id="site"></b> &middot; <a href="?site=1">use site 1 (hash)</a> &middot;
+     <a href="?site=2">use site 2 (persistent)</a></p>
+
+  <h2>Try it</h2>
+  <p>
+    <button id="nav">Navigate like a React app (pushState)</button>
+    <button id="custom">Send custom event</button>
+  </p>
+  <p>
+    <button id="consent">consent()</button>
+    <button id="revoke">revokeConsent()</button>
+    Stored visitor ID: <code id="vid"></code>
+  </p>
+  <p>Open DevTools &rarr; <b>Network</b> to watch the requests, then check ClickHouse at
+     <a href="http://localhost:8123/play" target="_blank">localhost:8123/play</a>.</p>
+
+  <h2>Requests sent</h2>
+  <div id="log"></div>
+
+  <script>
+    // Log every request tracker.js makes, so you can see them on the page.
+    const log = document.getElementById("log");
+    const realFetch = window.fetch;
+    window.fetch = (url, opts = {}) => {
+      log.textContent = `${opts.method || "GET"} ${url}\n${opts.body || ""}\n\n` + log.textContent;
+      return realFetch(url, opts);
+    };
+
+    const site = new URLSearchParams(location.search).get("site") || "1";
+    document.getElementById("site").textContent = site;
+
+    // Load the tracker the same way a real site would.
+    const s = document.createElement("script");
+    s.src = "/tracker.js";
+    s.dataset.siteId = site;
+    s.setAttribute("data-wait-for-consent", "");
+    document.head.appendChild(s);
+
+    const showVid = () => document.getElementById("vid").textContent =
+      localStorage.getItem("ap_visitor_id") || "(none)";
+    showVid();
+
+    let page = 1;
+    document.getElementById("nav").onclick = () =>
+      history.pushState({}, "", `?site=${site}&page=${++page}`);
+    document.getElementById("custom").onclick = () =>
+      analyticsPlatform.track("demo_button", { color: "blue", count: 3 });
+    document.getElementById("consent").onclick = () => { analyticsPlatform.consent(); showVid(); };
+    document.getElementById("revoke").onclick = () => { analyticsPlatform.revokeConsent(); showVid(); };
+  </script>
+</body>
+</html>

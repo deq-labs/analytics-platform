@@ -40,11 +40,37 @@ builder.Services.AddSingleton<VisitorIdentifier>();
 builder.Services.AddSingleton<SessionTracker>();
 builder.Services.AddSingleton<EventWriter>();
 
+// CORS: browsers block a page on site A from reading responses from site B
+// (this API) unless B says it's allowed. The tracker runs on customers' sites,
+// i.e. on any origin, so the tracker endpoints allow every origin -- but never
+// cookies/credentials, so no visitor login state can ever be sent here.
+const string TrackerCorsPolicy = "Tracker";
+builder.Services.AddCors(options => options.AddPolicy(TrackerCorsPolicy, policy => policy
+    .AllowAnyOrigin()
+    .WithMethods("GET", "POST")
+    .WithHeaders("Content-Type")));
+
 var app = builder.Build();
+
+// --- Middleware (runs on every request, in this order) ---------------------------
+app.UseStaticFiles(); // serves files in wwwroot/, e.g. /tracker.js
+app.UseCors();
 
 // --- Endpoints -----------------------------------------------------------------
 app.MapGet("/", () => "Analytics Platform API");
 app.MapHealthChecks("/health", new() { ResponseWriter = HealthResponseWriter.WriteJson });
-app.MapIngestionEndpoints();
+
+// A route group applies shared settings (here: the CORS policy) to every
+// endpoint mapped inside it.
+var trackerApi = app.MapGroup("").RequireCors(TrackerCorsPolicy);
+trackerApi.MapIngestionEndpoints();
+trackerApi.MapSiteEndpoints();
+
+// A test page that loads tracker.js, only when running locally.
+if (app.Environment.IsDevelopment())
+{
+    app.MapGet("/demo", () => Results.File(
+        Path.Combine(app.Environment.ContentRootPath, "DevPages", "demo.html"), "text/html"));
+}
 
 app.Run();

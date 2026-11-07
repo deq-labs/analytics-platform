@@ -87,10 +87,24 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   `referrer`, `visitorId`, `screenWidth`, `screenHeight`, `properties`).
   Validates, resolves the site (cached 1 min), computes visitor/session/ip_hash,
   one synchronous ClickHouse insert, returns 204. Errors are 400 ValidationProblem.
+  Body is read manually (not `[FromBody]`) so it accepts `Content-Type:
+  text/plain` — the tracker sends text/plain so cross-origin posts are CORS
+  "simple requests" with no preflight. Body capped at 16 KB (413).
+- `GET /api/sites/{id}/config` → `{ visitorIdMode, standardEvents[] }` (enabled
+  ones only), `Cache-Control: max-age=60`, 404 for unknown sites.
+- CORS policy `Tracker` (any origin, GET/POST, no credentials) applies only to
+  the tracker route group, not `/health` or future dashboard endpoints.
+- **`wwwroot/tracker.js`** — dependency-free ES5-ish snippet served by the API:
+  `<script defer src=".../tracker.js" data-site-id="1">`. Pageview on load +
+  SPA `pushState`/`popstate` (hash-only changes ignored), `fetch` with
+  `keepalive` + text/plain, queues events until config loads,
+  `analyticsPlatform.track/consent/revokeConsent`, optional
+  `data-wait-for-consent`. Persistent ID in `localStorage` key `ap_visitor_id`.
+- `/demo` (Development only) — `DevPages/demo.html` exercises the tracker.
 - `scripts/dev_seed.sql` creates site 1 (`hash`) and site 2 (`persistent`).
-- Not built yet: JS tracking snippet, site-config endpoint the snippet reads,
-  CORS for cross-origin `sendBeacon`, check that event hostname matches the
-  site's domain (anti-spam; probably Phase 7 with API keys).
+- Not built yet: **standard-event auto-instrumentation in tracker.js** (last
+  Phase 2 item), check that event hostname matches the site's domain
+  (anti-spam; probably Phase 7 with API keys), tracker.js caching/minification.
 
 ## Hard requirement: verify current library versions
 

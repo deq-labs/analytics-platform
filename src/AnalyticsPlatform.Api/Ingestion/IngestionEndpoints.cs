@@ -1,4 +1,6 @@
+using System.Text.Json;
 using AnalyticsPlatform.Api.Sites;
+using Microsoft.AspNetCore.Http.Features;
 using AnalyticsPlatform.Api.Visitors;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -14,14 +16,16 @@ public static class IngestionEndpoints
         return app;
     }
 
-    // ASP.NET Core fills in every parameter for us: `request` from the JSON body,
-    // `httpContext` and `cancellationToken` from the current request, and the
-    // rest from the dependency injection container.
+    // Events are tiny; anything bigger than this is junk or abuse.
+    private const long MaxBodyBytes = 16 * 1024;
+
+    // ASP.NET Core fills in every parameter for us: `httpContext` and
+    // `cancellationToken` from the current request, the rest from the
+    // dependency injection container.
     //
-    // The return type lists every possible response (204 or 400), which also
-    // documents the endpoint for anyone reading it.
-    private static async Task<Results<NoContent, ValidationProblem>> HandleEventAsync(
-        EventRequest request,
+    // The return type lists every possible response (204, 400, or 413), which
+    // also documents the endpoint for anyone reading it.
+    private static async Task<Results<NoContent, ValidationProblem, StatusCodeHttpResult>> HandleEventAsync(
         HttpContext httpContext,
         SiteConfigStore siteConfigStore,
         VisitorIdentifier visitorIdentifier,
@@ -30,6 +34,32 @@ public static class IngestionEndpoints
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
+        // We read the JSON body ourselves instead of taking an `EventRequest`
+        // parameter, because ASP.NET Core's automatic binding only accepts
+        // `Content-Type: application/json`. tracker.js sends `text/plain`: that
+        // keeps the cross-site request "simple" so browsers skip the extra CORS
+        // preflight (OPTIONS) request before every event.
+        EventRequest? request;
+        try
+        {
+            httpContext.Features.Get<IHttpMaxRequestBodySizeFeature>()!.MaxRequestBodySize = MaxBodyBytes;
+            request = await JsonSerializer.DeserializeAsync<EventRequest>(
+                httpContext.Request.Body, JsonSerializerOptions.Web, cancellationToken);
+        }
+        catch (JsonException)
+        {
+            return InvalidBody();
+        }
+        catch (BadHttpRequestException ex) when (ex.StatusCode == StatusCodes.Status413PayloadTooLarge)
+        {
+            return TypedResults.StatusCode(StatusCodes.Status413PayloadTooLarge);
+        }
+
+        if (request is null)
+        {
+            return InvalidBody();
+        }
+
         var errors = EventRequestValidator.Validate(request);
         if (errors.Count > 0)
         {
@@ -79,4 +109,10 @@ public static class IngestionEndpoints
 
         return TypedResults.NoContent();
     }
+
+    private static ValidationProblem InvalidBody() =>
+        TypedResults.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["body"] = ["Must be a JSON event object."],
+        });
 }
