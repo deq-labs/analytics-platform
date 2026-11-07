@@ -1,0 +1,13 @@
+{
+  "name": "tracker-tests",
+  "private": true,
+  "type": "module",
+  "description": "Automated tests for src/AnalyticsPlatform.Api/wwwroot/tracker.js in a simulated browser (jsdom).",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "jsdom": "30.1.3",
+    "vitest": "5.1.0"
+  }
+}

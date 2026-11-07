@@ -121,6 +121,40 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   / a not-yet-activated key — new keys can take ~5 min). With the file present,
   the real-DB tests run instead of skipping.
 
+### Packaging + tracker tests (Phase 8 part 3, done 2026-11-07)
+- **`Dockerfile`** (repo root, 3 stages): `node:26-alpine` builds the
+  dashboard → `dotnet/sdk:10.0` publishes the API → `dotnet/aspnet:10.0`
+  runtime with `dashboard/dist` copied into `wwwroot`. Runs as the image's
+  non-root `$APP_UID` (1654) on port 8080; `DataProtection__KeysPath=/data/keys`
+  (volume `app-keys`), `GeoIp__DatabasePath=/geoip/...` (`./data/geoip` mounted ro).
+- `docker-compose.yml` service **`app`** behind `profiles: [app]` — plain
+  `docker compose up -d` still starts only the databases (dev runs the API in
+  VS). `.env`: `APP_PORT`, `OPEN_REGISTRATION`, `BEHIND_PROXY`. README
+  "Self-hosting" has the Caddy example. Image smoke-tested 2026-11-07
+  (health, dashboard, tracker, login, non-root, keys persisted).
+- **API serves the dashboard** when `wwwroot/index.html` exists:
+  `MapFallbackToFile("{*path:nonfile}", "index.html")` + `MapFallback("/api/{**rest}")`
+  → 404 so API typos and missing assets never return HTML. Without a built
+  dashboard (dev) `/` returns the "Analytics Platform API" text.
+- **`tests/tracker`** (own npm project: vitest 5.1.0 + jsdom **30.1.3** — 31.0.0
+  was 2 days old, a new major): `harness.js` evaluates tracker.js in a jsdom
+  page with a stand-in `document.currentScript` and a recording `fetch`.
+  16 tests: config URL, pageview payload, text/plain + `credentials: "omit"`,
+  SPA pushState/anchors, hash vs persistent IDs, consent/revoke, property
+  stringify/clip, standard events gated by config, links/downloads, forms never
+  leak typed values, scroll depth (jsdom has no layout — sizes are stubbed).
+- **Python service: not added.** Everything so far (rollups, retention,
+  enrichment) fit naturally in C# + ClickHouse; nothing separable has appeared
+  yet. Revisit for something like anomaly detection or scheduled e-mail reports.
+
+### Possible next steps (not started)
+- Dashboard filters (by page / country / UTM), custom-event and standard-event
+  reports, UTM breakdown card — data is already collected.
+- User-Agent Client Hints for accurate OS versions; search/social referrer grouping.
+- Per-site time zones (all buckets are UTC); password change/reset (needs e-mail).
+- Durable ingestion queue / multiple API instances (queue + session cache are in-memory).
+- CI (GitHub Actions) running the three test suites.
+
 ### Users, sessions, deployment settings (Phase 8 part 2, done 2026-11-07)
 - **Sessions follow the database**: the cookie's `OnValidatePrincipal` →
   `AuthEndpoints.ValidateSessionAsync` looks the user up by id on every request
@@ -321,7 +355,7 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
 ### Dashboard (Phase 4, done) — `dashboard/`
 - `npm run dev` with the API on 5115; Vite proxies `/api` (override with
   `API_URL`). No CORS on the stats endpoints; `GET /api/sites` added for the
-  site picker (lists all sites until Phase 7 auth).
+  site picker (your sites; all sites for the admin).
 - Filter row (site + 24h/7d/30d/90d presets, all UTC, kept in the URL as
   `?site=&range=`) scopes every view. 24h → hourly buckets, else daily.
 - Charts follow the dataviz skill: 2-series line (pageviews `--series-1` blue,
@@ -418,11 +452,11 @@ whether to proceed or defer it, rather than silently building it.
    state). Steps: ✅ 1 public tracking IDs + domain check · ✅ 2 users + login +
    locking the dashboard API · ✅ 3 site management in the dashboard (incl. an
    invite UI) · ✅ 4 secret API keys for server-to-server stats reads.
-8. **Rollups, retention, remaining backlog** — hourly/daily rollup tables, real
-   retention policy (current TTL is a placeholder), then whatever's next from the
-   backlog. Also the point to evaluate whether the Python service earns its place.
+8. **Rollups, retention, remaining backlog** — ✅ done 2026-11-07: hourly
+   rollup + retention, user management + live session checks, proxy / key
+   settings, Docker packaging, tracker.js tests. Python evaluated: not needed yet.
 
-We are currently **in Phase 8**.
+**All 8 phases are complete** (2026-11-07). See "Possible next steps" below for ideas.
 The v1 core loop (snippet → C# ingestion → ClickHouse → dashboard) works end to end.
 
 ## Current state

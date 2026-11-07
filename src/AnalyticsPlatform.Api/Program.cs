@@ -204,7 +204,23 @@ app.UseAuthorization();  // enforces RequireAuthorization() on endpoints
 app.UseRateLimiter();
 
 // --- Endpoints -----------------------------------------------------------------
-app.MapGet("/", () => "Analytics Platform API");
+// The built dashboard (production: the Dockerfile copies dashboard/dist into
+// wwwroot). Any page request that isn't an API route or a file gets
+// index.html; React takes it from there. In development the web root holds
+// only tracker.js and the dashboard runs on Vite, so "/" just names the API.
+if (app.Environment.WebRootFileProvider.GetFileInfo("index.html").Exists)
+{
+    // {*path:nonfile} = any path without a file extension (so a missing
+    // /assets/x.js stays a 404). Fallbacks only run when nothing else matched.
+    app.MapFallbackToFile("{*path:nonfile}", "index.html");
+    // ...but a mistyped API URL must be a 404, not the HTML page.
+    app.MapFallback("/api/{**rest}", () => Results.NotFound());
+}
+else
+{
+    app.MapGet("/", () => "Analytics Platform API");
+}
+
 app.MapHealthChecks("/health", new() { ResponseWriter = HealthResponseWriter.WriteJson });
 
 // A route group applies shared settings (here: the CORS policy) to every
