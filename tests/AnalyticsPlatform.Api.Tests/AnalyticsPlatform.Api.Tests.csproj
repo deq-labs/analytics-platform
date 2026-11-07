@@ -26,4 +26,12 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- Repo root, so GeoIP tests can find data/geoip/ (see GeoLocatorTests). -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>RepoRoot</_Parameter1>
+      <_Parameter2>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../..'))</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
 </Project>

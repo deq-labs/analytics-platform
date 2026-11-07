@@ -82,7 +82,7 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   sessions; single instance only; hash-mode sessions split at UTC midnight
   (visitor_id changes with the salt). Revisit with Phase 5.
 
-### Enrichment (Phase 6, partial) — `src/AnalyticsPlatform.Api/Enrichment/`
+### Enrichment (Phase 6) — `src/AnalyticsPlatform.Api/Enrichment/`
 - **User agent → `browser`, `browser_version`, `os`, `os_version`,
   `device_type`, `is_bot`** via **DeviceDetector.NET 6.5.x** (port of Matomo's
   device detector; chosen 2026-11-07 over UAParser, abandoned since 2021, and
@@ -100,7 +100,24 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
 - Known limits: Chrome freezes the OS version in the UA (Windows 11 reports
   "10") — fixing needs User-Agent Client Hints (`Sec-CH-UA-*`), not done.
   Search-engine/social classification of referrers not done.
-- Next: GeoLite2 (needs MaxMind key), then breakdown endpoints + dashboard card.
+- **GeoIP → `country_code`, `region` (most specific subdivision, English),
+  `city`** via **MaxMind.GeoIP2 6.1** reading `GeoLite2-City.mmdb`.
+  - Download: the `geoipupdate` container (`ghcr.io/maxmind/geoipupdate:v8.0.0`)
+    in docker-compose, credentials `MAXMIND_ACCOUNT_ID` / `MAXMIND_LICENSE_KEY`
+    from `.env` (not user secrets — the API never needs the key), refreshes
+    every 72 h into `./data/geoip` (gitignored bind mount so the VS-run API sees it).
+  - API config: `GeoIp:DatabasePath` (Development: `../../data/geoip/...`,
+    resolved against the content root). Unset/missing file → geo is empty,
+    never an error.
+  - `MaxMindGeoLocator` loads the file with `FileAccessMode.Memory` (~60 MB;
+    memory-mapping would lock the file on Windows so geoipupdate couldn't
+    replace it) and re-checks the file timestamp every 5 min, swapping readers.
+  - Privacy: the raw IP is used for the lookup only; an integration test renders
+    every stored column (`formatRowNoNewline('TSV', *)`) and asserts the IP is absent.
+  - Behind a reverse proxy, `RemoteIpAddress` will be the proxy — configure
+    `ForwardedHeaders` at deploy time (not done; local dev is direct).
+  - Real-database unit tests `Assert.SkipUnless` the file exists.
+- Next: breakdown endpoints (browser, OS, device, country) + dashboard card.
 
 ### Batched ingestion (Phase 5, done)
 - Endpoint → `EventQueue` (bounded `Channel<EventRow>`, single reader) →
@@ -255,10 +272,11 @@ whether to proceed or defer it, rather than silently building it.
    under Current state).
 6. **Enrichment at ingestion** — 🟡 in progress. ✅ user-agent parsing + bot
    flag + UTM tags (2026-11-07, see "Enrichment" under Current state).
-   ⏳ IP geolocation (MaxMind GeoLite2) — waiting on the developer's MaxMind
-   account/licence key. Then: device/browser/geo breakdown endpoints + the
-   dashboard's "Locations & devices" card. Populate existing columns, don't
-   restructure the table.
+   ✅ IP geolocation code (GeoLite2 via geoipupdate container) — but the
+   developer's MaxMind credentials return 401 so far, so no database is
+   downloaded yet and the real-DB tests skip. Next: device/browser/geo
+   breakdown endpoints + the dashboard's "Locations & devices" card.
+   Populate existing columns, don't restructure the table.
 7. **Auth, multi-site, API keys** — Postgres-backed users, site registration,
    per-site API keys for the tracking snippet. The `sites` and
    `site_tracked_events` tables themselves already exist (pulled forward, see
@@ -268,7 +286,8 @@ whether to proceed or defer it, rather than silently building it.
    retention policy (current TTL is a placeholder), then whatever's next from the
    backlog. Also the point to evaluate whether the Python service earns its place.
 
-We are currently **in Phase 6** (UA + UTM done; GeoIP pending a MaxMind key).
+We are currently **in Phase 6** (UA, UTM and GeoIP code done; GeoIP data
+pending working MaxMind credentials; breakdown endpoints + dashboard card next).
 The v1 core loop (snippet → C# ingestion → ClickHouse → dashboard) works end to end.
 
 ## Current state
@@ -304,9 +323,9 @@ especially is expensive to change post-hoc):
   event schemas become nested — the native JSON type is production-ready as of
   25.3 and would be the right call for that case.
 - **Browser/OS/device and UTM columns are populated** since Phase 6 (see
-  "Enrichment"); **geo columns** (`country_code`, `region`, `city`) are still
-  empty until GeoIP lands. Don't add new columns for these — populate the
-  existing ones.
+  "Enrichment"); **geo columns** (`country_code`, `region`, `city`) are filled
+  whenever a GeoLite2 database is present. Don't add new columns for these —
+  populate the existing ones.
 - **`ip_hash`**, not raw IP — hashed at ingestion (Phase 2), for GDPR alignment.
   Never store or log raw IP addresses.
 - **TTL is a placeholder** (1 year DELETE) — not a real retention policy. Real

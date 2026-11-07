@@ -72,7 +72,7 @@ public class EventBatchWriterTests : IAsyncDisposable
         SessionId: Guid.NewGuid(), VisitorId: "h:test", Url: $"https://site.test/{i}", Path: $"/{i}",
         Hostname: "site.test", Referrer: "", ReferrerDomain: "", UserAgent: "", ScreenWidth: 0,
         ScreenHeight: 0, IpHash: "", Properties: [],
-        Client: new("Chrome", "140", "Windows", "10", "desktop", IsBot: false), Utm: UtmTags.None);
+        Client: new("Chrome", "140", "Windows", "10", "desktop", IsBot: false), Utm: UtmTags.None, Geo: GeoLocation.Unknown);
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 

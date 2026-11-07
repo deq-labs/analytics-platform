@@ -163,7 +163,8 @@ public sealed class ApiFixture : IAsyncLifetime
             SELECT event_type, event_name, url, path, hostname, visitor_id, toString(session_id),
                    referrer, referrer_domain, ip_hash, user_agent, screen_width, toJSONString(properties),
                    browser, browser_version, os, os_version, device_type, is_bot,
-                   utm_source, utm_medium, utm_campaign, utm_term, utm_content
+                   utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+                   toString(country_code), region, city
             FROM events
             WHERE site_id = {site:UInt32}
             ORDER BY timestamp, event_name
@@ -185,7 +186,8 @@ public sealed class ApiFixture : IAsyncLifetime
                 reader.GetString(17), reader.GetFieldValue<byte>(18) == 1,
                 new Enrichment.UtmTags(
                     reader.GetString(19), reader.GetString(20), reader.GetString(21),
-                    reader.GetString(22), reader.GetString(23))));
+                    reader.GetString(22), reader.GetString(23)),
+                new Enrichment.GeoLocation(reader.GetString(24), reader.GetString(25), reader.GetString(26))));
         }
 
         return events;
@@ -243,7 +245,8 @@ public sealed record StoredEvent(
     string OsVersion,
     string DeviceType,
     bool IsBot,
-    Enrichment.UtmTags Utm);
+    Enrichment.UtmTags Utm,
+    Enrichment.GeoLocation Geo);
 
 public sealed record SeedPageview(
     DateTime Time,

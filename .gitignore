@@ -24,3 +24,6 @@ Thumbs.db
 
 # ...except the dashboard launch settings Visual Studio needs
 !dashboard/.vscode/
+
+# Downloaded data (e.g. GeoLite2 database from the geoipupdate container)
+data/

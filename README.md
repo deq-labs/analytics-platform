@@ -33,7 +33,7 @@ docker compose up -d
 | Postgres   | 5433                         | `analytics_app` |
 
 Schemas are created automatically on first start from `clickhouse/init/` and
-`postgres/init/`. `scripts/sanity_check.sql` contains queries that validate the
+`postgres/init/`. Optional IP geolocation: put a free MaxMind GeoLite2 account ID and licence key in `.env` (`MAXMIND_ACCOUNT_ID`, `MAXMIND_LICENSE_KEY`); the `geoipupdate` container then downloads the database into `data/geoip/`. `scripts/sanity_check.sql` contains queries that validate the
 ClickHouse schema.
 
 ## Tests

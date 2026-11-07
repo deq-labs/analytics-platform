@@ -35,6 +35,7 @@ public static class IngestionEndpoints
         SessionTracker sessionTracker,
         EventQueue eventQueue,
         UserAgentParser userAgentParser,
+        IGeoLocator geoLocator,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
@@ -113,7 +114,9 @@ public static class IngestionEndpoints
             // of stats, rather than rejected: no signal for bots to adapt to, and
             // the raw data stays inspectable.
             Client: userAgentParser.Parse(userAgent),
-            Utm: UtmTags.FromUrl(url));
+            Utm: UtmTags.FromUrl(url),
+            // The raw IP is used for this lookup (and the hashes above), then discarded.
+            Geo: geoLocator.Locate(httpContext.Connection.RemoteIpAddress));
 
         if (!eventQueue.TryEnqueue(row))
         {

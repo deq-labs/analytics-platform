@@ -43,6 +43,19 @@ builder.Services.AddSingleton<VisitorIdentifier>();
 builder.Services.AddSingleton<SessionTracker>();
 builder.Services.AddSingleton<UserAgentParser>(); // Phase 6 enrichment (caches per user agent)
 
+// GeoIP: reads the GeoLite2 file that the geoipupdate container keeps fresh.
+// A relative path is resolved against the content root (the project folder).
+builder.Services.AddOptions<GeoIpOptions>()
+    .Bind(builder.Configuration.GetSection("GeoIp"))
+    .PostConfigure<IHostEnvironment>((o, env) =>
+    {
+        if (o.DatabasePath.Length > 0 && !Path.IsPathRooted(o.DatabasePath))
+        {
+            o.DatabasePath = Path.GetFullPath(Path.Combine(env.ContentRootPath, o.DatabasePath));
+        }
+    });
+builder.Services.AddSingleton<IGeoLocator, MaxMindGeoLocator>();
+
 // Buffered ingestion (Phase 5): endpoint -> EventQueue -> EventBatchWriter -> ClickHouse.
 // Settings come from the "Ingestion" config section; ValidateOnStart makes a bad
 // value fail at startup instead of at the first event.

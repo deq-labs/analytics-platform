@@ -3,8 +3,7 @@ using ClickHouse.Driver;
 
 namespace AnalyticsPlatform.Api.Ingestion;
 
-// One row of the ClickHouse `events` table, in C# types. Columns not listed here
-// (country_code, region, city) keep their DEFAULT '' until GeoIP enrichment.
+// One row of the ClickHouse `events` table, in C# types.
 public sealed record EventRow(
     uint SiteId,
     string EventType,
@@ -23,7 +22,8 @@ public sealed record EventRow(
     string IpHash,
     Dictionary<string, string> Properties,
     ClientInfo Client,
-    UtmTags Utm);
+    UtmTags Utm,
+    GeoLocation Geo);
 
 // Where batches of events get stored. EventBatchWriter only knows this
 // interface, so unit tests can swap in a fake that fails on demand.
@@ -42,6 +42,7 @@ public sealed class ClickHouseEventStore(ClickHouseClient client) : IEventStore
         "screen_width", "screen_height", "ip_hash", "properties",
         "browser", "browser_version", "os", "os_version", "device_type", "is_bot",
         "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+        "country_code", "region", "city",
     ];
 
     public Task InsertAsync(IReadOnlyList<EventRow> batch, CancellationToken cancellationToken)
@@ -56,6 +57,7 @@ public sealed class ClickHouseEventStore(ClickHouseClient client) : IEventStore
             e.Client.Browser, e.Client.BrowserVersion, e.Client.Os, e.Client.OsVersion, e.Client.DeviceType,
             (byte)(e.Client.IsBot ? 1 : 0), // ClickHouse UInt8
             e.Utm.Source, e.Utm.Medium, e.Utm.Campaign, e.Utm.Term, e.Utm.Content,
+            e.Geo.CountryCode, e.Geo.Region, e.Geo.City,
         });
 
         return client.InsertBinaryAsync("events", Columns, rows, cancellationToken: cancellationToken);
