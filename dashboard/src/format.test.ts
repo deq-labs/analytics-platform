@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatAxis, niceTicks, rangeFor } from './format'
+import { countryName, deviceLabel, formatAxis, niceTicks, rangeFor } from './format'
 
 // Run with `npm test`. Vitest's describe/it/expect read like xUnit's
 // class/[Fact]/Assert.
@@ -71,5 +71,25 @@ describe('formatAxis', () => {
   it('writes numbers in full under 10,000 and compact above', () => {
     expect(formatAxis(9_500)).toBe((9_500).toLocaleString())
     expect(formatAxis(20_000)).toMatch(/^20\s?K$/i)
+  })
+})
+
+describe('breakdown labels', () => {
+  it('turns country codes into names', () => {
+    expect(countryName('US')).toBe('United States')
+    expect(countryName('DE')).toBe('Germany')
+  })
+
+  it('falls back to the code for anything Intl does not know', () => {
+    expect(countryName('XX')).toBe('XX') // unassigned code
+  })
+
+  it.each([
+    ['desktop', 'Desktop'],
+    ['mobile', 'Mobile'],
+    ['tablet', 'Tablet'],
+    ['other', 'Other'],
+  ])('device %s -> %s', (value, label) => {
+    expect(deviceLabel(value)).toBe(label)
   })
 })

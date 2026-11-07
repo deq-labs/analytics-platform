@@ -87,3 +87,19 @@ export function useTopReferrers(siteId: number | undefined, range: Range) {
     placeholderData: keepPreviousData,
   })
 }
+
+// ---- Breakdowns (browser / os / device / country) ----
+
+export type Dimension = 'browser' | 'os' | 'device' | 'country'
+export type BreakdownItem = { value: string | null; visitors: number; pageviews: number }
+export type BreakdownResponse = { from: string; to: string; dimension: Dimension; items: BreakdownItem[] }
+
+export function useBreakdown(siteId: number | undefined, range: Range, dimension: Dimension) {
+  return useQuery({
+    queryKey: ['breakdown', siteId, range, dimension],
+    queryFn: () =>
+      getJson<BreakdownResponse>(statsUrl(siteId!, 'breakdown', range, { dimension, limit: '10' })),
+    enabled: siteId !== undefined,
+    placeholderData: keepPreviousData,
+  })
+}

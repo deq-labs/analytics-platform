@@ -136,6 +136,46 @@ public sealed class StatsQueries(ClickHouseClient client)
         return referrers;
     }
 
+    public async Task<IReadOnlyList<BreakdownItem>> BreakdownAsync(
+        uint siteId, DateRange range, BreakdownDimension dimension, int limit, CancellationToken cancellationToken)
+    {
+        // The column comes from our enum, never from the request text.
+        // country_code is FixedString(2); toString makes it a normal string.
+        var column = dimension switch
+        {
+            BreakdownDimension.Browser => "browser",
+            BreakdownDimension.Os => "os",
+            BreakdownDimension.Device => "device_type",
+            BreakdownDimension.Country => "toString(country_code)",
+            _ => throw new ArgumentOutOfRangeException(nameof(dimension)),
+        };
+
+        var sql = $$"""
+            SELECT {{column}} AS value, uniq(visitor_id) AS visitors, count() AS pageviews
+            FROM events
+            WHERE {{PageviewFilter}}
+            GROUP BY value
+            ORDER BY visitors DESC, pageviews DESC, value
+            LIMIT {top_n:UInt32}
+            """;
+
+        var parameters = Parameters(siteId, range);
+        parameters.AddParameter("top_n", (uint)limit);
+
+        var items = new List<BreakdownItem>();
+        using var reader = await client.ExecuteReaderAsync(sql, parameters, cancellationToken: cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var value = reader.GetString(0);
+            items.Add(new BreakdownItem(
+                value.Length == 0 ? null : value,
+                reader.GetFieldValue<ulong>(1),
+                reader.GetFieldValue<ulong>(2)));
+        }
+
+        return items;
+    }
+
     private static ClickHouseParameterCollection Parameters(uint siteId, DateRange range)
     {
         var parameters = new ClickHouseParameterCollection();

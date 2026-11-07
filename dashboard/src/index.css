@@ -355,3 +355,9 @@ td.num.primary {
   border-radius: 2px;
   background: var(--series-1);
 }
+
+/* Compact tabs inside a card header (e.g. Browser / OS / Device). */
+.segmented.small button {
+  font-size: 13px;
+  padding: 3px 10px;
+}

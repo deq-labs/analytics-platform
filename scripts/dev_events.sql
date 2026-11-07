@@ -15,7 +15,8 @@
 
 INSERT INTO events
     (site_id, event_type, timestamp, session_id, visitor_id, url, path, hostname,
-     referrer, referrer_domain, user_agent, screen_width, screen_height)
+     referrer, referrer_domain, user_agent, screen_width, screen_height,
+     browser, os, device_type, country_code)
 SELECT
     {site:UInt32},
     'pageview',
@@ -31,7 +32,11 @@ SELECT
     replaceRegexpOne(domain(referrer), '^www\\.', ''),
     'DemoData/1.0',
     1920,
-    1080
+    1080,
+    browser,
+    os,
+    device,
+    country
 FROM
 (
     SELECT
@@ -46,6 +51,15 @@ FROM
         ['', '', '', '', 'https://www.google.com/', 'https://www.google.com/', 'https://google.com/',
          'https://news.ycombinator.com/', 'https://github.com/deq-labs/analytics-platform',
          'https://www.reddit.com/r/dotnet/', 'https://duckduckgo.com/', 'https://t.co/abc123']
-            [1 + rand(4) % 12] AS referrer
+            [1 + rand(4) % 12] AS referrer,
+        -- Weighted picks again. Browser and OS are drawn independently -- fine for demo data.
+        ['Chrome', 'Chrome', 'Chrome', 'Chrome', 'Mobile Safari', 'Mobile Safari', 'Safari',
+         'Firefox', 'Microsoft Edge', 'Samsung Browser'][1 + rand(5) % 10] AS browser,
+        ['Windows', 'Windows', 'Windows', 'iOS', 'iOS', 'Android', 'Android', 'Mac',
+         'GNU/Linux', ''][1 + rand(6) % 10] AS os,
+        ['desktop', 'desktop', 'desktop', 'desktop', 'desktop', 'mobile', 'mobile',
+         'mobile', 'mobile', 'tablet'][1 + rand(7) % 10] AS device,
+        ['US', 'US', 'US', 'US', 'GB', 'GB', 'DE', 'DE', 'CA', 'FR', 'IN',
+         'NL', 'BR', 'AU', 'JP', ''][1 + rand(8) % 16] AS country
     FROM numbers(25000)
 );

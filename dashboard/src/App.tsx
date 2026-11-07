@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSites, useTopPages, useTopReferrers } from './api'
 import { Card, QueryState } from './components/Card'
+import { BreakdownCard } from './components/BreakdownCard'
 import { PageviewsChart } from './components/PageviewsChart'
 import { TopList } from './components/TopList'
 import { PRESETS, rangeFor, type PresetKey } from './format'
@@ -113,12 +114,18 @@ export default function App() {
             rowKey={(r) => r.domain ?? '(direct)'}
           />
 
-          <Card title="Locations & devices" className="span-2">
-            <p className="message">
-              Country, browser, OS and device breakdowns arrive with ingestion enrichment (Phase 6).
-              The data isn't collected yet.
-            </p>
-          </Card>
+          <BreakdownCard title="Locations" tabs={[{ dimension: 'country', label: 'Country' }]} siteId={activeSiteId} range={range} />
+
+          <BreakdownCard
+            title="Devices"
+            tabs={[
+              { dimension: 'browser', label: 'Browser' },
+              { dimension: 'os', label: 'OS' },
+              { dimension: 'device', label: 'Device' },
+            ]}
+            siteId={activeSiteId}
+            range={range}
+          />
         </div>
       )}
     </main>

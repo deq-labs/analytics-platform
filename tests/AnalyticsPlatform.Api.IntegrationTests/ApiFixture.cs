@@ -215,11 +215,15 @@ public sealed class ApiFixture : IAsyncLifetime
 
     public Task SeedPageviewsAsync(uint siteId, IEnumerable<SeedPageview> pageviews)
     {
-        string[] columns = ["site_id", "event_type", "timestamp", "session_id", "visitor_id", "url", "path", "hostname", "referrer_domain", "is_bot"];
+        string[] columns =
+        [
+            "site_id", "event_type", "timestamp", "session_id", "visitor_id", "url", "path", "hostname",
+            "referrer_domain", "is_bot", "browser", "os", "device_type", "country_code",
+        ];
         var rows = pageviews.Select(p => new object[]
         {
             siteId, p.EventType, p.Time, p.Session, p.Visitor, $"https://{p.Hostname}{p.Path}", p.Path, p.Hostname, p.ReferrerDomain,
-            (byte)(p.IsBot ? 1 : 0),
+            (byte)(p.IsBot ? 1 : 0), p.Browser, p.Os, p.DeviceType, p.CountryCode,
         });
         return ClickHouse.InsertBinaryAsync("events", columns, rows);
     }
@@ -256,7 +260,11 @@ public sealed record SeedPageview(
     string ReferrerDomain = "",
     string Hostname = "site.test",
     string EventType = "pageview",
-    bool IsBot = false);
+    bool IsBot = false,
+    string Browser = "",
+    string Os = "",
+    string DeviceType = "",
+    string CountryCode = "");
 
 public static class RepoPaths
 {

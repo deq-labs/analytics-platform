@@ -9,8 +9,9 @@ public class StatsRequestTests
     private readonly FakeTimeProvider _time = new(new DateTimeOffset(Now));
     private readonly Dictionary<string, string[]> _errors = [];
 
-    private static StatsRequest Request(string? from = null, string? to = null, string? interval = null, int? limit = null) =>
-        new(from, to, interval, limit);
+    private static StatsRequest Request(
+        string? from = null, string? to = null, string? interval = null, int? limit = null, string? dimension = null) =>
+        new(from, to, interval, limit, dimension);
 
     // ---- range ----
 
@@ -125,5 +126,30 @@ public class StatsRequestTests
     {
         Assert.False(Request(limit: value).TryGetLimit(_errors, out _));
         Assert.Contains("limit", _errors.Keys);
+    }
+
+    // ---- breakdown dimension ----
+
+    [Theory]
+    [InlineData("browser", BreakdownDimension.Browser)]
+    [InlineData("os", BreakdownDimension.Os)]
+    [InlineData("device", BreakdownDimension.Device)]
+    [InlineData("country", BreakdownDimension.Country)]
+    [InlineData("COUNTRY", BreakdownDimension.Country)]
+    public void Dimension_parses_case_insensitively(string value, BreakdownDimension expected)
+    {
+        Assert.True(Request(dimension: value).TryGetDimension(_errors, out var dimension));
+        Assert.Equal(expected, dimension);
+    }
+
+    [Theory]
+    [InlineData(null)]           // required: there is no sensible default
+    [InlineData("")]
+    [InlineData("user_agent")]   // a real column, but not an allowed dimension
+    [InlineData("browser; DROP TABLE events")]
+    public void Unknown_or_missing_dimension_is_rejected(string? value)
+    {
+        Assert.False(Request(dimension: value).TryGetDimension(_errors, out _));
+        Assert.Contains("dimension", _errors.Keys);
     }
 }

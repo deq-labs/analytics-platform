@@ -77,3 +77,20 @@ export function formatBucket(iso: string, interval: Interval, long = false) {
         ...(long ? { weekday: 'short' } : {}),
       })
 }
+
+// ---- Breakdown labels ----
+
+// ISO country code -> English name, using the browser's built-in data
+// (no country list to ship). Unassigned codes come back as the code itself.
+const regionNames = new Intl.DisplayNames(['en'], { type: 'region', fallback: 'code' })
+
+export function countryName(code: string): string {
+  try {
+    return regionNames.of(code) ?? code
+  } catch {
+    return code // not a valid region code at all
+  }
+}
+
+// API device types (desktop/mobile/tablet/other) -> labels.
+export const deviceLabel = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)

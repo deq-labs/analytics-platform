@@ -17,15 +17,17 @@ type TopListProps<T> = {
   primary: (item: T) => number
   secondary: (item: T) => number
   rowKey: (item: T) => string
+  // Optional control in the card header (e.g. tabs).
+  action?: ReactNode
 }
 
 export function TopList<T>(props: TopListProps<T>) {
-  const { title, items, error, loading, refreshing, label, primary, secondary, rowKey } = props
+  const { title, items, error, loading, refreshing, label, primary, secondary, rowKey, action } = props
   // The thin bars are scaled to the largest row, so the top row is always full width.
   const max = Math.max(1, ...(items ?? []).map(primary))
 
   return (
-    <Card title={title} refreshing={refreshing}>
+    <Card title={title} refreshing={refreshing} action={action}>
       <QueryState error={error} loading={loading} empty={items?.length === 0} />
       {items && items.length > 0 && (
         <table>

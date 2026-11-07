@@ -117,7 +117,21 @@ Decided 2026-11-06: **each site chooses** (`sites.visitor_id_mode`, Postgres,
   - Behind a reverse proxy, `RemoteIpAddress` will be the proxy — configure
     `ForwardedHeaders` at deploy time (not done; local dev is direct).
   - Real-database unit tests `Assert.SkipUnless` the file exists.
-- Next: breakdown endpoints (browser, OS, device, country) + dashboard card.
+- GeoLite2 credentials verified working 2026-11-07 (first attempts were a typo
+  / a not-yet-activated key — new keys can take ~5 min). With the file present,
+  the real-DB tests run instead of skipping.
+
+### Breakdowns (Phase 6, done)
+- `GET /api/sites/{id}/stats/breakdown?dimension=browser|os|device|country`
+  (+ from/to/limit). `dimension` is required and mapped through the
+  `BreakdownDimension` enum to a fixed column — request text never reaches SQL.
+  Items `{ value (null = unknown), visitors, pageviews }`, ranked by visitors.
+- Dashboard: "Locations" (country names via `Intl.DisplayNames`, code shown
+  muted; Windows can.t render flag emoji, so no flags) and "Devices" (Browser /
+  OS / Device tabs in the card header — they pick the view; the filter row
+  still scopes the data). Convention in all lists: the right-most bold column
+  is the ranking metric and drives the bar.
+- `scripts/dev_events.sql` now also generates browser / os / device / country.
 
 ### Batched ingestion (Phase 5, done)
 - Endpoint → `EventQueue` (bounded `Channel<EventRow>`, single reader) →
@@ -267,16 +281,13 @@ whether to proceed or defer it, rather than silently building it.
    state). Read endpoints: pageviews over time, top pages, top referrers.
 4. **React dashboard (v1 views only)** — ✅ done (see "Dashboard" under Current
    state). Time series chart, top pages table, top referrers table, geo/device
-   breakdown (empty state until Phase 6). Exactly these four. Resist adding more.
+   breakdown (filled in Phase 6: "Locations" + "Devices" cards). Exactly these
+   views. Resist adding more.
 5. **Batching + async ingestion** — ✅ done 2026-11-07 (see "Batched ingestion"
    under Current state).
-6. **Enrichment at ingestion** — 🟡 in progress. ✅ user-agent parsing + bot
-   flag + UTM tags (2026-11-07, see "Enrichment" under Current state).
-   ✅ IP geolocation code (GeoLite2 via geoipupdate container) — but the
-   developer's MaxMind credentials return 401 so far, so no database is
-   downloaded yet and the real-DB tests skip. Next: device/browser/geo
-   breakdown endpoints + the dashboard's "Locations & devices" card.
-   Populate existing columns, don't restructure the table.
+6. **Enrichment at ingestion** — ✅ done 2026-11-07: user-agent parsing + bot
+   flag, UTM tags, IP geolocation (GeoLite2), breakdown endpoint + dashboard
+   cards. See "Enrichment" and "Breakdowns" under Current state.
 7. **Auth, multi-site, API keys** — Postgres-backed users, site registration,
    per-site API keys for the tracking snippet. The `sites` and
    `site_tracked_events` tables themselves already exist (pulled forward, see
@@ -286,8 +297,7 @@ whether to proceed or defer it, rather than silently building it.
    retention policy (current TTL is a placeholder), then whatever's next from the
    backlog. Also the point to evaluate whether the Python service earns its place.
 
-We are currently **in Phase 6** (UA, UTM and GeoIP code done; GeoIP data
-pending working MaxMind credentials; breakdown endpoints + dashboard card next).
+We are currently between **Phase 6 (done 2026-11-07) and Phase 7 (next)**.
 The v1 core loop (snippet → C# ingestion → ClickHouse → dashboard) works end to end.
 
 ## Current state

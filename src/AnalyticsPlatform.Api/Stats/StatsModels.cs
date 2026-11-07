@@ -18,3 +18,10 @@ public sealed record TimeSeriesResponse(
 // A *generic* record: one definition works for any item type, so
 // TopListResponse<TopPage> and TopListResponse<TopReferrer> share it.
 public sealed record TopListResponse<T>(DateTime From, DateTime To, IReadOnlyList<T> Items);
+
+// One row of a breakdown. Value is null when unknown (e.g. no GeoIP database,
+// or a user agent DeviceDetector couldn't classify).
+public sealed record BreakdownItem(string? Value, ulong Visitors, ulong Pageviews);
+
+public sealed record BreakdownResponse(
+    DateTime From, DateTime To, string Dimension, IReadOnlyList<BreakdownItem> Items);

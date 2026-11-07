@@ -2,6 +2,16 @@ using System.Globalization;
 
 namespace AnalyticsPlatform.Api.Stats;
 
+// What a breakdown groups by. Each maps to a fixed column in StatsQueries --
+// the user's text never becomes part of the SQL.
+public enum BreakdownDimension
+{
+    Browser,
+    Os,
+    Device,
+    Country,
+}
+
 public enum StatsInterval
 {
     Hour,
@@ -14,13 +24,13 @@ public enum StatsInterval
 public readonly record struct DateRange(DateTime From, DateTime To);
 
 // Query-string parameters shared by every stats endpoint, e.g.
-//   ?from=2026-11-01&to=2026-11-08&interval=day&limit=10
+//   ?from=2026-11-01&to=2026-11-08&interval=day&limit=10&dimension=browser
 // Endpoints take this with [AsParameters], which binds each property from the
 // query string by name.
 //
 // Dates come in as strings on purpose: parsing them ourselves guarantees a date
 // without a timezone ("2026-11-01") is treated as UTC, not as the server's local time.
-public sealed record StatsRequest(string? From, string? To, string? Interval, int? Limit)
+public sealed record StatsRequest(string? From, string? To, string? Interval, int? Limit, string? Dimension)
 {
     private static readonly TimeSpan DefaultRange = TimeSpan.FromDays(7);
     private static readonly TimeSpan MaxRange = TimeSpan.FromDays(366);
@@ -79,6 +89,25 @@ public sealed record StatsRequest(string? From, string? To, string? Interval, in
         }
 
         return true;
+    }
+
+    public bool TryGetDimension(Dictionary<string, string[]> errors, out BreakdownDimension dimension)
+    {
+        (var ok, dimension) = Dimension?.ToLowerInvariant() switch
+        {
+            "browser" => (true, BreakdownDimension.Browser),
+            "os" => (true, BreakdownDimension.Os),
+            "device" => (true, BreakdownDimension.Device),
+            "country" => (true, BreakdownDimension.Country),
+            _ => (false, default),
+        };
+
+        if (!ok)
+        {
+            errors["dimension"] = ["Must be 'browser', 'os', 'device', or 'country'."];
+        }
+
+        return ok;
     }
 
     public bool TryGetLimit(Dictionary<string, string[]> errors, out int limit)

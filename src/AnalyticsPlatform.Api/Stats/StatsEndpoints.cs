@@ -8,6 +8,7 @@ namespace AnalyticsPlatform.Api.Stats;
 //   GET /api/sites/{siteId}/stats/pageviews      ?from&to&interval=hour|day
 //   GET /api/sites/{siteId}/stats/top-pages      ?from&to&limit
 //   GET /api/sites/{siteId}/stats/top-referrers  ?from&to&limit
+//   GET /api/sites/{siteId}/stats/breakdown      ?dimension=browser|os|device|country&from&to&limit
 //
 // No authentication yet -- that's Phase 7. Until then, don't expose this API
 // beyond your own machine.
@@ -23,6 +24,7 @@ public static class StatsEndpoints
         stats.MapGet("/pageviews", GetPageviewsAsync);
         stats.MapGet("/top-pages", GetTopPagesAsync);
         stats.MapGet("/top-referrers", GetTopReferrersAsync);
+        stats.MapGet("/breakdown", GetBreakdownAsync);
         return app;
     }
 
@@ -88,6 +90,35 @@ public static class StatsEndpoints
 
         var pages = await queries.TopPagesAsync(siteId, range, limit, cancellationToken);
         return TypedResults.Ok(new TopListResponse<TopPage>(range.From, range.To, pages));
+    }
+
+    // ?dimension=browser|os|device|country (required), plus from/to/limit.
+    private static async Task<Results<Ok<BreakdownResponse>, NotFound, ValidationProblem>> GetBreakdownAsync(
+        uint siteId,
+        [AsParameters] StatsRequest request,
+        SiteConfigStore sites,
+        StatsQueries queries,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        var errors = new Dictionary<string, string[]>();
+        // Non-short-circuiting `&`: run every check so all problems are reported at once.
+        var valid = request.TryGetRange(timeProvider, errors, out var range)
+                    & request.TryGetLimit(errors, out var limit)
+                    & request.TryGetDimension(errors, out var dimension);
+        if (!valid)
+        {
+            return TypedResults.ValidationProblem(errors);
+        }
+
+        if (await sites.GetAsync(siteId, cancellationToken) is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var items = await queries.BreakdownAsync(siteId, range, dimension, limit, cancellationToken);
+        return TypedResults.Ok(new BreakdownResponse(
+            range.From, range.To, dimension.ToString().ToLowerInvariant(), items));
     }
 
     private static async Task<Results<Ok<TopListResponse<TopReferrer>>, NotFound, ValidationProblem>> GetTopReferrersAsync(
