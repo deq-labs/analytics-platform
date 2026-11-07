@@ -328,7 +328,7 @@ being used).
   (native Go compiler), TanStack Query 5 for all server state (one hook per
   endpoint in `src/api.ts`, `keepPreviousData` so refetches dim instead of
   flashing), Recharts 3 for charts, oxlint for linting, plain CSS with color-role
-  custom properties (no CSS framework). Versions are pinned in `package.json`.
+  custom properties (no CSS framework). Exact versions locked in `package-lock.json`.
 - **Testing:** not yet decided.
 
 ## How this file relates to the Claude Project
